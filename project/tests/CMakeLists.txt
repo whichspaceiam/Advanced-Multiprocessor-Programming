@@ -12,3 +12,8 @@ add_test(NAME freelist_sequential COMMAND freelist)
 add_executable(queue_seq test_queue_seq.cpp)
 target_include_directories(queue_seq PRIVATE project_includes)
 add_test(NAME queue_sequential COMMAND queue_seq)
+
+
+add_executable(global_lock test_global_lock.cpp)
+target_include_directories(global_lock PRIVATE project_includes)
+add_test(NAME GlobalLock COMMAND global_lock)
