@@ -5,7 +5,7 @@
 
 namespace seq
 {
-using value_t = double; // To be changed
+using value_t = int; // To be changed if one will
 value_t empty_val = std::numeric_limits<value_t>::infinity();
 
 struct Node

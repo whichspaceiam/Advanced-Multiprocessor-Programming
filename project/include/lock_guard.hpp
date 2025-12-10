@@ -1,4 +1,5 @@
 #pragma once
+#include <omp.h>
 #include <limits>
 #include <unordered_set>
 #include <vector>
@@ -12,10 +13,16 @@ namespace global_lock
 class ConcurrentQueue
 {
     seq::Queue q;
-    std::mutex m;
+    omp_lock_t global_lock;
+    // std::mutex m;
 
   public:
-    ConcurrentQueue() = default;
+    ConcurrentQueue(){
+        omp_init_lock(&global_lock);
+    };
+    ~ConcurrentQueue(){
+        omp_destroy_lock(&global_lock);
+    }
     ConcurrentQueue(ConcurrentQueue const&) = delete;
     ConcurrentQueue& operator=(ConcurrentQueue const&) = delete;
     ConcurrentQueue(ConcurrentQueue &&) = delete;
@@ -23,17 +30,17 @@ class ConcurrentQueue
 
     void push(value_t v)
     {
-        m.lock();
+        omp_set_lock(&global_lock);
         q.push(v);
-        m.unlock();
+        omp_unset_lock(&global_lock);
     }
-
+    
     value_t pop()
     {
         value_t to_rtn;
-        m.lock();
+        omp_set_lock(&global_lock);
         to_rtn = q.pop();
-        m.unlock();
+        omp_unset_lock(&global_lock);
         return to_rtn;
     }
 };
