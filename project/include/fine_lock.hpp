@@ -251,55 +251,38 @@ class Queue : public BaseQueue
     value_t pop() override
     {
         int tid = omp_get_thread_num();
+
+        // Acquire both locks in a fixed order
         omp_set_lock(&header_lock);
         omp_set_lock(&tail_lock);
 
-
-        // if (header->next == nullptr)
-        // {
-        //     omp_unset_lock(&header_lock);
-        //     return empty_val;
-        // }
-
         Node *current = header->next;
+        if (current == nullptr)
+        {
+            // Empty queue
+            omp_unset_lock(&tail_lock);
+            omp_unset_lock(&header_lock);
+            return empty_val;
+        }
+
         value_t val = current->value;
 
-        // bool maybe_last = (current == tail);
-
-        // if (!maybe_last)
-        // {
-        //     // common case: unlink under header_lock only
-        //     header->next = current->next;
-        //     // update bookkeeping while still holding header_lock
-            // freelists[tid].push(current);
-            // --size;
-        //     omp_unset_lock(&header_lock);
-        //     return val;
-        // }
-
-        // // possible last node: acquire tail_lock while holding header_lock
-        // omp_set_lock(&tail_lock);
-
-        // // re-check under both locks (another thread may have changed tail)
-        // if (current == tail)
-        // {
-        //     // still last -> update head and tail atomically (w.r.t. push)
-        //     header->next = current->next; // should be nullptr
-        //     assert(header->next == nullptr);
-        //     tail = header;
-        //     freelists[tid].push(current);
-        //     --size;
-        //     omp_unset_lock(&tail_lock);
-        //     omp_unset_lock(&header_lock);
-        //     return val;
-        // }
-
-        // tail changed meanwhile: handle as non-last
-        omp_unset_lock(&tail_lock);
+        // Unlink node
         header->next = current->next;
-        freelists[tid].push(current);
+
+        // If we popped the last node, fix tail
+        if (current == tail)
+            tail = header;
+
         --size;
+
+        // Release locks
+        omp_unset_lock(&tail_lock);
         omp_unset_lock(&header_lock);
+
+        // Recycle node afterwards
+        freelists[tid].push(current);
+
         return val;
     }
 
