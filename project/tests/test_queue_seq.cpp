@@ -20,6 +20,7 @@ int main() {
     {
         Queue q;
         assert(q.pop() == empty_val);
+        assert(q.get_size()==0);
         check_tail_correctness(q);
     }
 
@@ -30,6 +31,7 @@ int main() {
         q.push(10);
         Node const * tail = q.get_tail();
         Node const * head = q.get_head();
+        assert(q.get_size()==1);
         assert(head_org == head);
         assert(head!=tail);
         assert(tail->value==10);
@@ -190,6 +192,35 @@ int main() {
 
         check_tail_correctness(q);
     }
+
+
+    //     // ------------------------------------------------------------
+    // std::cout << "TEST 11: Two threads doing only pop (multiple consumers)\n";
+    // // ------------------------------------------------------------
+    // {
+    //     Queue q;
+
+    //     int total_sum = 0;
+    //     for (int i = 1; i < 2000; i++){
+    //         q.push(i);
+    //         total_sum+=i;
+    //     }
+
+
+    //     std::cout<< "Size: "<<q.get_size()<<"\n";
+    //     int sum = 0;
+    //     int counter=0;
+    //     while (true) {
+    //         value_t v = q.pop();
+    //         sum+=v;
+    //         if (v == seq::empty_val) break;
+    //         counter++;
+    //     }
+
+    //     assert(total_sum==sum);
+    //     assert(counter == 1999);
+    // }
+
 
     return 0;
 }

@@ -2,12 +2,22 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <atomic>
 #include "lock_guard.hpp"   // your global_lock::ConcurrentQueue
 
 using global_lock::ConcurrentQueue;
 using global_lock::value_t;
 
 int main() {
+    
+    // ------------------------------------------------------------
+    std::cout << "TEST 0: Empty val assertion\n";
+    // ------------------------------------------------------------
+    {
+        for(int i =1; i<1'000'000; i++){
+            assert(seq::empty_val != i);
+        }
+    }
 
     // ------------------------------------------------------------
     std::cout << "TEST 1: Single-thread push/pop\n";
@@ -57,26 +67,41 @@ int main() {
     {
         ConcurrentQueue cq;
 
-        for (int i = 0; i < 2000; i++)
+        int total_sum = 0;
+        for (int i = 0; i < 2000; i++){
             cq.push(i);
+            total_sum+=i;
+        }
+
+
+        std::cout<< "Size: "<<cq.get_size()<<"\n";
 
         int c1 = 0;
         int c2 = 0;
 
-        auto consumer = [&](int& counter) {
+        int s1 = 0;
+        int s2 = 0;
+
+        auto consumer = [&](int& counter, int& sum) {
+            
             while (true) {
                 value_t v = cq.pop();
                 if (v == seq::empty_val) break;
+                sum+=v;
                 counter++;
             }
         };
 
-        std::thread t1(consumer, std::ref(c1));
-        std::thread t2(consumer, std::ref(c2));
+        std::thread t1(consumer, std::ref(c1), std::ref(s1));
+        std::thread t2(consumer, std::ref(c2), std::ref(s2));
 
         t1.join();
         t2.join();
 
+        std::cout<<"c1, c2, Size:  "<< c1<<", "<< c2<<", "<< cq.get_size()<<std::endl;
+        std::cout<<"s1, s2  "<< s1<<", "<<s2<<std::endl;
+
+        assert(total_sum==s1+s2);
         assert(c1 + c2 == 2000);
     }
 

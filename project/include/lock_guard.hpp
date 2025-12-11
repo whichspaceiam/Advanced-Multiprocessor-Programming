@@ -5,12 +5,15 @@
 #include <vector>
 #include <mutex>
 #include "sequential.hpp"
+#include "generics.hpp"
+#include "base_queue.hpp"
+
 
 namespace global_lock
 {
-    using value_t = seq::value_t;
+    using value_t = generics::value_t;
 
-class ConcurrentQueue
+class ConcurrentQueue: public BaseQueue
 {
     seq::Queue q;
     omp_lock_t global_lock;
@@ -28,20 +31,25 @@ class ConcurrentQueue
     ConcurrentQueue(ConcurrentQueue &&) = delete;
     ConcurrentQueue& operator=(ConcurrentQueue &&) = delete;
 
-    void push(value_t v)
+    bool push(value_t v) override
     {
         omp_set_lock(&global_lock);
         q.push(v);
         omp_unset_lock(&global_lock);
+        return true;
     }
     
-    value_t pop()
+    value_t pop() override
     {
         value_t to_rtn;
         omp_set_lock(&global_lock);
         to_rtn = q.pop();
         omp_unset_lock(&global_lock);
         return to_rtn;
+    }
+
+    int get_size() const override{
+        return q.get_size();
     }
 };
 }; // namespace global_lock

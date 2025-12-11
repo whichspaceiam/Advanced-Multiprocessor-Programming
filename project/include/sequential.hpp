@@ -2,11 +2,15 @@
 #include <limits>
 #include <unordered_set>
 #include <vector>
+#include "generics.hpp"
+#include "base_queue.hpp"
 
 namespace seq
 {
-using value_t = int; // To be changed if one will
-value_t empty_val = std::numeric_limits<value_t>::infinity();
+using value_t = generics::value_t; // To be changed if one will
+value_t empty_val = generics::empty_val;
+
+
 
 struct Node
 {
@@ -75,7 +79,7 @@ class FreeList
     }
 };
 
-class Queue
+class Queue: public BaseQueue
 { // FIFO
     Node *header;
     Node *tail;
@@ -103,7 +107,7 @@ class Queue
         }
     };
 
-    void push(value_t val)
+    bool push(value_t val) override
     {
         Node *n = freelist.get(val);
         if (n == nullptr)
@@ -115,8 +119,10 @@ class Queue
         tail->next = n;
         tail = n;
         size++;
+
+        return true;
     }
-    value_t pop()
+    value_t pop() override
     {
         if (header->next == nullptr)
             return empty_val;
@@ -132,6 +138,8 @@ class Queue
         size--;
         return val;
     }
+
+    int get_size() const override {return size;}
 
     Node const *get_head() const { return header; }
     Node const *get_tail() const { return tail; }
