@@ -254,33 +254,37 @@ class Queue : public BaseQueue
 
         // Acquire both locks in a fixed order
         omp_set_lock(&header_lock);
-        omp_set_lock(&tail_lock);
-
+        
         Node *current = header->next;
         if (current == nullptr)
         {
             // Empty queue
-            omp_unset_lock(&tail_lock);
             omp_unset_lock(&header_lock);
             return empty_val;
         }
-
         value_t val = current->value;
 
-        // Unlink node
-        header->next = current->next;
 
-        // If we popped the last node, fix tail
-        if (current == tail)
+
+
+        if(size<2){
+
+            omp_set_lock(&tail_lock);
+            header->next = current->next;
+            --size;
+            if (current == tail)
             tail = header;
+            
+            omp_unset_lock(&tail_lock);
+        }else{
+            header->next = current->next;
+            --size;
 
-        --size;
 
-        // Release locks
-        omp_unset_lock(&tail_lock);
-        omp_unset_lock(&header_lock);
-
+        }
+    
         // Recycle node afterwards
+        omp_unset_lock(&header_lock);
         freelists[tid].push(current);
 
         return val;
