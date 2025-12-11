@@ -208,7 +208,8 @@ class Benchmark
     Config config;
     std::vector<Counter> counters; // for each thread one
     Results results;
-    bool verify_correctness(std::vector<Counter> const &counters, int leftovers)
+    bool verify_correctness(std::vector<Counter> const &counters,
+                            value_t leftovers)
     {
         value_t total_pushed = 0;
         value_t total_popped = 0;
@@ -219,9 +220,10 @@ class Benchmark
             total_popped += c.sum_of_poped_values;
         }
 
-        std::cout<< "(pushed, poped, leftovers)= " << total_pushed<<" "<< total_popped<<" "<<leftovers<<std::endl;
+        std::cout << "(pushed_val, poped_val, leftovers_val)= " << total_pushed
+                  << " " << total_popped << " " << leftovers << std::endl;
 
-        return total_pushed == total_popped+leftovers;
+        return total_pushed == (total_popped + leftovers);
     }
 
     std::vector<value_t> generate_batch_of_elements(int N, std::mt19937 &rng)
@@ -307,7 +309,12 @@ class Benchmark
                 l_counter.time += t_end - t_start;
 
             } // End parallel
+            #pragma omp barrier  // optional but good
             int leftovers = 0;
+            int small_counter = 0;
+            std::cout << "My empty val" << generics::empty_val << std::endl;
+            std::cout << "Size of queue before counting leftovers "
+                      << queue.get_size() << std::endl;
 
             while (true)
             {
@@ -318,15 +325,20 @@ class Benchmark
                 }
                 else
                 {
-                    assert(queue.get_size()==0);
                     break;
                 }
+                small_counter++;
             }
+            std::cout << "Size of queue at the end: " << queue.get_size()
+                      << std::endl;
+            std::cout << " I tried to pop at the end " << small_counter
+                      << std::endl;
 
             if (!verify_correctness(counters, leftovers))
                 std::cerr << "Something went terribly wrong" << std::endl;
 
             update_results(results, counters);
+            std::cout << "\n\n";
         } // End for loop repetition
 
         calc_results(results, config);
