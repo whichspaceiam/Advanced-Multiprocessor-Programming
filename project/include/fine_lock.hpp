@@ -254,7 +254,7 @@ class Queue : public BaseQueue
 
         // Acquire both locks in a fixed order
         omp_set_lock(&header_lock);
-        
+
         Node *current = header->next;
         if (current == nullptr)
         {
@@ -264,25 +264,23 @@ class Queue : public BaseQueue
         }
         value_t val = current->value;
 
-
-
-
-        if(size<2){
+        if (size < 2)
+        {
 
             omp_set_lock(&tail_lock);
             header->next = current->next;
             --size;
             if (current == tail)
-            tail = header;
-            
+                tail = header;
+
             omp_unset_lock(&tail_lock);
-        }else{
+        }
+        else
+        {
             header->next = current->next;
             --size;
-
-
         }
-    
+
         // Recycle node afterwards
         omp_unset_lock(&header_lock);
         freelists[tid].push(current);
