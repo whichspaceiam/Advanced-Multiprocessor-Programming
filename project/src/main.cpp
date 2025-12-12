@@ -1,15 +1,17 @@
 #include "benchmark.hpp"
 #include "fine_lock.hpp"
+#include "lock_free.hpp"
+#include "lock_free_aba.hpp"
 #include "timer.hpp"
 #include <iostream>
 
 int main()
 {
     ConfigRecipe recipe = ConfigRecipe::ThreadSpecific;
-    int n_threads = 24;
+    int n_threads = 16;
     int max_time = 1;
     int seed = 42;
-    int repetitions = 10;
+    int repetitions = 1;
     Config config =
         ConfigFactory{n_threads, repetitions, max_time, seed, recipe}();
 
@@ -25,12 +27,14 @@ int main()
     std::cout << "Hello master of distaster" << std::endl;
     Timer t;
     // global_lock::ConcurrentQueue queue;
-    finelock::Queue queue;
+    // finelock::Queue queue;
+    // lock_free::Queue queue;
+    lock_free_aba::Queue queue;
 
     benchmark.run(queue);
     assert (finelock::empty_val== generics::empty_val);
-    std::cout<< " I experienced header tail problem :" <<queue.header_tail_condition<<std::endl;
-    std::cout<< " I found null header problem :" <<queue.null_header_cnt<<std::endl;
+    // std::cout<< " I experienced header tail problem :" <<queue.header_tail_condition<<std::endl;
+    // std::cout<< " I found null header problem :" <<queue.null_header_cnt<<std::endl;
     benchmark.print_results();
     // t.checkpoint();
     // auto res = t.get_laps();

@@ -21,3 +21,9 @@ add_executable(global_lock test_global_lock.cpp)
 target_include_directories(global_lock PRIVATE project_includes)
 target_link_libraries(global_lock PRIVATE OpenMP::OpenMP_CXX)
 add_test(NAME GlobalLock COMMAND global_lock)
+
+
+add_executable(tagged_ptr tagged_ptr.cpp)
+target_include_directories(tagged_ptr PRIVATE project_includes)
+target_link_libraries(tagged_ptr PRIVATE OpenMP::OpenMP_CXX)
+add_test(NAME TaggedPointer COMMAND tagged_ptr)

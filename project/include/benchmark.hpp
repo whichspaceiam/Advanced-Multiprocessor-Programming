@@ -132,13 +132,13 @@ class ConfigFactory
     }
 };
 
-struct alignas(64) Counter
+struct Counter
 {
-    int total_operations{};
-    int succeeded_push{};
-    int succeeded_pop{};
-    int total_push{};
-    int total_pop{};
+    size_t total_operations{};
+    size_t succeeded_push{};
+    size_t succeeded_pop{};
+    size_t total_push{};
+    size_t total_pop{};
     value_t sum_of_pushed_values{};
     value_t sum_of_poped_values{};
     double time{};
@@ -160,34 +160,34 @@ struct Results
 {
     double avg_time{};
 
-    int total_n_operations{};
-    int total_succeded_enqueues{};
-    int total_succeded_dequeues{};
+    size_t total_n_operations{};
+    size_t total_succeded_enqueues{};
+    size_t total_succeded_dequeues{};
 
-    int total_enqueues{};
-    int total_dequeues{};
+    size_t total_enqueues{};
+    size_t total_dequeues{};
 };
 
 void update_results(Results &res, std::vector<Counter> const &counters)
 {
     res.total_n_operations = std::accumulate(
         counters.begin(), counters.end(), 0,
-        [](int sum, Counter const &c) { return sum + c.total_operations; });
+        [](size_t sum, Counter const &c) { return sum + c.total_operations; });
 
     res.total_succeded_enqueues = std::accumulate(
         counters.begin(), counters.end(), 0,
-        [](int sum, Counter const &c) { return sum + c.succeeded_push; });
+        [](size_t sum, Counter const &c) { return sum + c.succeeded_push; });
 
     res.total_succeded_dequeues = std::accumulate(
         counters.begin(), counters.end(), 0,
-        [](int sum, Counter const &c) { return sum + c.succeeded_pop; });
+        [](size_t sum, Counter const &c) { return sum + c.succeeded_pop; });
 
     res.total_enqueues = std::accumulate(counters.begin(), counters.end(), 0,
-                                         [](int sum, Counter const &c)
+                                         [](size_t sum, Counter const &c)
                                          { return sum + c.total_push; });
 
     res.total_dequeues = std::accumulate(counters.begin(), counters.end(), 0,
-                                         [](int sum, Counter const &c)
+                                         [](size_t sum, Counter const &c)
                                          { return sum + c.total_pop; });
 
     double total_time = std::accumulate(counters.begin(), counters.end(), 0.0,
@@ -226,11 +226,9 @@ class Benchmark
         return total_pushed == (total_popped + leftovers);
     }
 
-    std::vector<value_t> generate_batch_of_elements(int N, std::mt19937 &rng)
+    std::vector<value_t> generate_batch_of_elements(uint N, std::mt19937 &rng)
     {
         std::vector<value_t> to_rtn(N);
-        // to_rtn.reserve(N);
-
         std::iota(to_rtn.begin(), to_rtn.end(), static_cast<value_t>(0));
         std::shuffle(to_rtn.begin(), to_rtn.end(), rng);
         return to_rtn;
@@ -253,17 +251,17 @@ class Benchmark
 
         counters.resize(config.num_threads);
 
-        for (int i = 0; i < config.repetitions; i++)
+        for (size_t i = 0; i < config.repetitions; i++)
         {
             // reset_counters();
 #pragma omp parallel num_threads(config.num_threads)
             {
-                int thread_id = omp_get_thread_num();
+                uint thread_id = omp_get_thread_num();
                 Counter &l_counter = counters[thread_id];
                 reset_counter(l_counter);
 
-                int enqueue_batch_size = config.batch_enque[thread_id];
-                int dequeue_batch_size = config.batch_deque[thread_id];
+                uint enqueue_batch_size = config.batch_enque[thread_id];
+                uint dequeue_batch_size = config.batch_deque[thread_id];
                 std::mt19937 thread_rng(config.seed + thread_id + 1);
 
                 double t_start = omp_get_wtime();
@@ -273,7 +271,7 @@ class Benchmark
                         generate_batch_of_elements(enqueue_batch_size,
                                                    thread_rng);
 
-                    for (int i = 0; i < enqueue_batch_size; i++)
+                    for (size_t i = 0; i < enqueue_batch_size; i++)
                     {
                         value_t tmp = push_elements[i];
 
@@ -288,11 +286,9 @@ class Benchmark
                     std::vector<value_t> poped_elements;
                     poped_elements.reserve(dequeue_batch_size);
 
-                    for (int i = 0; i < dequeue_batch_size; i++)
+                    for (size_t i = 0; i < dequeue_batch_size; i++)
                     {
-                        // pop element and append locally
                         value_t tmp = queue.pop();
-                        // aka if it did not fail
                         if (tmp != generics::empty_val)
                         {
                             l_counter.sum_of_poped_values += tmp;

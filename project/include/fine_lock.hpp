@@ -232,7 +232,6 @@ class Queue : public BaseQueue
     bool push(value_t val) override
     {
         int tid = omp_get_thread_num();
-        omp_set_lock(&tail_lock);
         Node *n = freelists[tid].get(val);
         if (n == nullptr)
         {
@@ -240,10 +239,15 @@ class Queue : public BaseQueue
             n->value = val;
         }
         n->next = nullptr;
+
+
+        omp_set_lock(&tail_lock);
         tail->next = n;
         tail = n;
-        size++;
         omp_unset_lock(&tail_lock);
+        
+        
+        size++;
 
         return true;
     }
@@ -252,13 +256,11 @@ class Queue : public BaseQueue
     {
         int tid = omp_get_thread_num();
 
-        // Acquire both locks in a fixed order
         omp_set_lock(&header_lock);
 
         Node *current = header->next;
         if (current == nullptr)
         {
-            // Empty queue
             omp_unset_lock(&header_lock);
             return empty_val;
         }
@@ -269,7 +271,6 @@ class Queue : public BaseQueue
 
             omp_set_lock(&tail_lock);
             header->next = current->next;
-            --size;
             if (current == tail)
                 tail = header;
 
@@ -278,11 +279,12 @@ class Queue : public BaseQueue
         else
         {
             header->next = current->next;
-            --size;
         }
-
-        // Recycle node afterwards
+        
         omp_unset_lock(&header_lock);
+
+
+        --size;
         freelists[tid].push(current);
 
         return val;
