@@ -3,7 +3,8 @@
 #include <thread>
 #include <vector>
 #include <atomic>
-#include "lock_guard.hpp"   // your global_lock::ConcurrentQueue
+#include <mutex>
+#include "global_lock.hpp"   // your global_lock::ConcurrentQueue
 
 using global_lock::ConcurrentQueue;
 using global_lock::value_t;

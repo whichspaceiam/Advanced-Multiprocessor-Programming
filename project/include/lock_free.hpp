@@ -15,7 +15,6 @@ locks.
 #include <cassert>
 #include <limits>
 #include <omp.h>
-#include <unordered_set>
 #include <vector>
 
 namespace lock_free
@@ -48,14 +47,6 @@ namespace lock_free
             }
         }
 
-        // FreeList(FreeList const &other) = delete;
-        // // FreeList(FreeList &&other) = delete;
-        // FreeList &operator=(FreeList const &other) = delete;
-        // // FreeList &operator=(FreeList &&other) = delete;
-
-        // RULE OF 5 IMPLEMNTATION OF COPY CONSTRUCTORS AND SO ON
-
-        // Copy constructor (deep copy)
         FreeList(const FreeList &other)
         {
             if (!other.header)

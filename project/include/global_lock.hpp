@@ -1,9 +1,5 @@
 #pragma once
 #include <omp.h>
-#include <limits>
-#include <unordered_set>
-#include <vector>
-#include <mutex>
 #include "sequential.hpp"
 #include "generics.hpp"
 #include "base_queue.hpp"
@@ -17,7 +13,6 @@ class ConcurrentQueue: public BaseQueue
 {
     seq::Queue q;
     omp_lock_t global_lock;
-    // std::mutex m;
 
   public:
     ConcurrentQueue(){

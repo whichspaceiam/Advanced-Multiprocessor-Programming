@@ -1,6 +1,4 @@
 #pragma once
-#include "lock_guard.hpp"
-#include "sequential.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -9,6 +7,8 @@
 #include <iostream>
 #include <random>
 #include <utility>
+#include "global_lock.hpp"
+#include "sequential.hpp"
 
 using value_t = int;
 

@@ -12,15 +12,16 @@ find_package(OpenMP REQUIRED)
 
 include_directories(include)
 
-add_library(project_includes INTERFACE)
-target_include_directories(project_includes INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-add_executable(main
-src/main.cpp
+add_library(core STATIC
+src/sequential.cpp
+src/global_lock.cpp
+src/fine_lock.cpp
+src/atomic.cpp
 )
+target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# target_include_directories(main PRIVATE project_includes)
-target_link_libraries(main PRIVATE project_includes OpenMP::OpenMP_CXX)
+
 
 enable_testing()
 add_subdirectory(tests)
+add_subdirectory(benchmarks)
