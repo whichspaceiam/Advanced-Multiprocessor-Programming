@@ -6,8 +6,8 @@
 #include <mutex>
 #include "global_lock.hpp"   // your global_lock::ConcurrentQueue
 
-using global_lock::ConcurrentQueue;
-using global_lock::value_t;
+using gl::ConcurrentQueue;
+using gl::value_t;
 
 int main() {
     
@@ -16,7 +16,7 @@ int main() {
     // ------------------------------------------------------------
     {
         for(int i =1; i<1'000'000; i++){
-            assert(seq::empty_val != i);
+            assert(bs::empty_val != i);
         }
     }
 
@@ -32,7 +32,7 @@ int main() {
         assert(cq.pop() == 10);
         assert(cq.pop() == 20);
         assert(cq.pop() == 30);
-        assert(cq.pop() == seq::empty_val);
+        assert(cq.pop() == bs::empty_val);
     }
 
 
@@ -54,7 +54,7 @@ int main() {
         t2.join();
 
         int count = 0;
-        while (cq.pop() != seq::empty_val)
+        while (cq.pop() != bs::empty_val)
             count++;
 
         // Expect exactly 2000 pushes
@@ -87,7 +87,7 @@ int main() {
             
             while (true) {
                 value_t v = cq.pop();
-                if (v == seq::empty_val) break;
+                if (v == bs::empty_val) break;
                 sum+=v;
                 counter++;
             }
@@ -122,7 +122,7 @@ int main() {
         auto consumer = [&](int& counter) {
             while (true) {
                 value_t v = cq.pop();
-                if (v == seq::empty_val) break;
+                if (v == bs::empty_val) break;
                 counter++;
             }
         };
@@ -167,7 +167,7 @@ int main() {
         auto consumer = [&]() {
             while (true) {
                 value_t v = cq.pop();
-                if (v == seq::empty_val) break;
+                if (v == bs::empty_val) break;
                 std::lock_guard<std::mutex> lk(count_m);
                 consumed_total++;
             }

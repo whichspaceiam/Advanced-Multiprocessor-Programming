@@ -3,6 +3,7 @@
 #include <iostream>
 
 using namespace seq;    // If your code is inside namespace seq
+using namespace bs;
 
 // Helper to check internal invariants:
 static void check_tail_correctness(const Queue& q) {

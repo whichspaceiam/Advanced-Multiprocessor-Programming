@@ -17,6 +17,7 @@ src/sequential.cpp
 src/global_lock.cpp
 src/fine_lock.cpp
 src/atomic.cpp
+src/basic_structures.cpp
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
