@@ -1,7 +1,7 @@
 #include <cassert>
-#include "sequential.hpp"
 #include <iostream>
-
+#include <limits>
+#include "sequential.hpp"
 using namespace seq;    // If your code is inside namespace seq
 using namespace bs;
 

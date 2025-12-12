@@ -9,7 +9,6 @@ locks.
 */
 
 #pragma once
-#include "base_queue.hpp"
 #include "generics.hpp"
 #include <atomic>
 #include <cassert>

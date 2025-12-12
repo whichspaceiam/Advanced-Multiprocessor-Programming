@@ -2,19 +2,24 @@
 #include <iostream>
 #include <thread>
 #include <vector>
-#include "lock_free_aba.hpp"
+#include "atomic.hpp"
 
-struct alignas(1<<17)
-Node {
-    int value;
-};
+// using namespace as;
 
+// struct alignas(1<<17)
+// Node {
+//     int value;
+// };
+// template class as::TaggedPointer<Node>;
+using namespace as;
 void test_tagged_pointer_basic()
 {
-    Node n1{10};
-    Node n2{20};
+    Node n1, n2;
+    // Node n2;
+    n1.value = 10;
+    n2.value = 20;
 
-    TaggedPointer<Node> tp(&n1, 42, true);
+    as::TaggedPointer<Node> tp(&n1, 42, true);
 
     // Test getPointer, getVersion, getMark
     Node* ptr;
@@ -53,7 +58,7 @@ void test_tagged_pointer_basic()
 
 void test_tagged_pointer_multithreaded()
 {
-    TaggedPointer<Node> tp(nullptr, 0, false);
+    as::TaggedPointer<Node> tp(nullptr, 0, false);
     const int nThreads = 4;
     const int nIters = 1000;
 

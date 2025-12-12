@@ -13,11 +13,12 @@ find_package(OpenMP REQUIRED)
 include_directories(include)
 
 add_library(core STATIC
-src/sequential.cpp
-src/global_lock.cpp
-src/fine_lock.cpp
-src/atomic.cpp
-src/basic_structures.cpp
+  src/atomic_structures.cpp
+  src/atomic.cpp
+  src/basic_structures.cpp
+  src/double_lock.cpp
+  src/global_lock.cpp
+  src/sequential.cpp
 )
 target_include_directories(core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

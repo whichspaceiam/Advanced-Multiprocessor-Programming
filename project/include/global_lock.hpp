@@ -1,14 +1,13 @@
 #pragma once
 #include <omp.h>
 #include "sequential.hpp"
-#include "generics.hpp"
-#include "base_queue.hpp"
+#include "structures.hpp"
 
 namespace gl
 {
     using value_t = generics::value_t;
 
-    class ConcurrentQueue : public BaseQueue
+    class ConcurrentQueue : public interface::BaseQueue
     {
         seq::Queue q;
         omp_lock_t global_lock;

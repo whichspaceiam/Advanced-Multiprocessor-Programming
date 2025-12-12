@@ -245,7 +245,7 @@ class Benchmark
         }
     };
 
-    void run(BaseQueue &queue)
+    void run(interface::BaseQueue &queue)
     {
         std::mt19937 global_rng(config.seed);
 

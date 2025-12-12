@@ -1,6 +1,6 @@
 #include <cassert>
 #include "sequential.hpp"   // your FreeList + Node
-#include "basic_structures.hpp"
+#include "structures.hpp"
 
 using namespace seq;
 

@@ -1,9 +1,9 @@
 #include "benchmark.hpp"
-#include "fine_lock.hpp"
-#include "lock_free.hpp"
-#include "lock_free_aba.hpp"
+#include "double_lock.hpp"
+#include "atomic.hpp"
 #include "timer.hpp"
 #include <iostream>
+#include <cassert>
 
 int main()
 {
@@ -29,10 +29,10 @@ int main()
     // global_lock::ConcurrentQueue queue;
     // finelock::Queue queue;
     // lock_free::Queue queue;
-    lock_free_aba::Queue queue;
+    lock_free::Queue queue;
 
     benchmark.run(queue);
-    assert (finelock::empty_val== generics::empty_val);
+    // assert (finelock::empty_val== generics::empty_val);
     // std::cout<< " I experienced header tail problem :" <<queue.header_tail_condition<<std::endl;
     // std::cout<< " I found null header problem :" <<queue.null_header_cnt<<std::endl;
     benchmark.print_results();
