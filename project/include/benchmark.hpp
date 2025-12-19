@@ -20,8 +20,8 @@ enum class ConfigRecipe
 
 struct Config
 {
-    int num_threads;
-    int repetitions;
+    size_t num_threads;
+    size_t repetitions;
     int max_time_in_s;
     int seed;
     std::vector<int> batch_enque; // per thread batch
@@ -70,14 +70,14 @@ struct Config
 
 class ConfigFactory
 {
-  private:
+private:
     int num_threads;
     int repetitions;
     int max_time_in_s;
     int seed;
     ConfigRecipe config_recipe;
 
-  public:
+public:
     ConfigFactory(int num_threads, int repetitions, int max_time_in_s, int seed,
                   ConfigRecipe config_recipe)
         : num_threads(num_threads), repetitions(repetitions),
@@ -97,8 +97,8 @@ class ConfigFactory
         {
         case ConfigRecipe::Balanced:
         {
-            to_rtn.batch_enque.resize(num_threads, 128);
-            to_rtn.batch_deque.resize(num_threads, 128);
+            to_rtn.batch_enque.resize(num_threads, 4096);
+            to_rtn.batch_deque.resize(num_threads, 4096);
             break;
         }
 
@@ -142,6 +142,7 @@ struct Counter
     value_t sum_of_pushed_values{};
     value_t sum_of_poped_values{};
     double time{};
+    double timeout{};
 };
 
 void reset_counter(Counter &counter)
@@ -154,11 +155,13 @@ void reset_counter(Counter &counter)
     counter.sum_of_pushed_values = 0;
     counter.sum_of_poped_values = 0;
     counter.time = 0.0;
+    counter.timeout = 0.0;
 }
 
 struct Results
 {
     double avg_time{};
+    double avg_timeout{};
 
     size_t total_n_operations{};
     size_t total_succeded_enqueues{};
@@ -172,15 +175,18 @@ void update_results(Results &res, std::vector<Counter> const &counters)
 {
     res.total_n_operations = std::accumulate(
         counters.begin(), counters.end(), 0,
-        [](size_t sum, Counter const &c) { return sum + c.total_operations; });
+        [](size_t sum, Counter const &c)
+        { return sum + c.total_operations; });
 
     res.total_succeded_enqueues = std::accumulate(
         counters.begin(), counters.end(), 0,
-        [](size_t sum, Counter const &c) { return sum + c.succeeded_push; });
+        [](size_t sum, Counter const &c)
+        { return sum + c.succeeded_push; });
 
     res.total_succeded_dequeues = std::accumulate(
         counters.begin(), counters.end(), 0,
-        [](size_t sum, Counter const &c) { return sum + c.succeeded_pop; });
+        [](size_t sum, Counter const &c)
+        { return sum + c.succeeded_pop; });
 
     res.total_enqueues = std::accumulate(counters.begin(), counters.end(), 0,
                                          [](size_t sum, Counter const &c)
@@ -193,21 +199,33 @@ void update_results(Results &res, std::vector<Counter> const &counters)
     double total_time = std::accumulate(counters.begin(), counters.end(), 0.0,
                                         [](double sum, Counter const &c)
                                         { return sum + c.time; });
+
+    double total_timeout = std::accumulate(counters.begin(), counters.end(), 0.0,
+                                           [](double sum, Counter const &c)
+                                           { return sum + c.timeout; });
     res.avg_time = counters.empty() ? 0.0 : total_time / counters.size();
+    res.avg_timeout = counters.empty() ? 0.0 : total_timeout / counters.size();
 }
 
 void calc_results(Results &res, Config const &config)
 {
-    // std::cout << "Implement me. Do not forget !!!" << std::endl;
-    // Do some gloabal avergaing
+    int repetitions = config.repetitions;
+
+    res.avg_time /= repetitions;
+    res.avg_timeout /= repetitions;
+    res.total_n_operations /= repetitions;
+    res.total_dequeues /= repetitions;
+    res.total_enqueues /= repetitions;
+    res.total_succeded_dequeues /= repetitions;
+    res.total_succeded_enqueues /= repetitions;
 }
 
 class Benchmark
 {
-  private:
+private:
     Config config;
     std::vector<Counter> counters; // for each thread one
-    Results results;
+    Results results{};
     bool verify_correctness(std::vector<Counter> const &counters,
                             value_t leftovers)
     {
@@ -220,9 +238,6 @@ class Benchmark
             total_popped += c.sum_of_poped_values;
         }
 
-        std::cout << "(pushed_val, poped_val, leftovers_val)= " << total_pushed
-                  << " " << total_popped << " " << leftovers << std::endl;
-
         return total_pushed == (total_popped + leftovers);
     }
 
@@ -234,7 +249,7 @@ class Benchmark
         return to_rtn;
     };
 
-  public:
+public:
     Benchmark(Config &&cfg) : config(std::move(cfg))
     {
         if (!config.is_config_correct())
@@ -253,7 +268,6 @@ class Benchmark
 
         for (size_t i = 0; i < config.repetitions; i++)
         {
-            // reset_counters();
 #pragma omp parallel num_threads(config.num_threads)
             {
                 uint thread_id = omp_get_thread_num();
@@ -263,13 +277,17 @@ class Benchmark
                 uint enqueue_batch_size = config.batch_enque[thread_id];
                 uint dequeue_batch_size = config.batch_deque[thread_id];
                 std::mt19937 thread_rng(config.seed + thread_id + 1);
+                double timeout = 0.0;
 
                 double t_start = omp_get_wtime();
                 while (omp_get_wtime() - t_start < config.max_time_in_s)
                 {
+                    double t0 = omp_get_wtime();
                     std::vector<value_t> push_elements =
                         generate_batch_of_elements(enqueue_batch_size,
                                                    thread_rng);
+                    double t1 = omp_get_wtime();
+                    timeout += t1 - t0;
 
                     for (size_t i = 0; i < enqueue_batch_size; i++)
                     {
@@ -283,8 +301,11 @@ class Benchmark
                         l_counter.total_push++;
                     }
 
+                    t0 = omp_get_wtime();
                     std::vector<value_t> poped_elements;
                     poped_elements.reserve(dequeue_batch_size);
+                    t1 = omp_get_wtime();
+                    timeout += t1 - t0;
 
                     for (size_t i = 0; i < dequeue_batch_size; i++)
                     {
@@ -297,44 +318,97 @@ class Benchmark
                         l_counter.total_pop++;
                     }
                 }
+                double t_end = omp_get_wtime();
                 l_counter.total_operations =
                     l_counter.total_pop + l_counter.total_push;
 
-                double t_end = omp_get_wtime();
-
                 l_counter.time += t_end - t_start;
+                l_counter.timeout += timeout;
 
             } // End parallel
-            #pragma omp barrier  // optional but good
-            int leftovers = 0;
-            int small_counter = 0;
-            std::cout << "My empty val" << generics::empty_val << std::endl;
-            std::cout << "Size of queue before counting leftovers "
-                      << queue.get_size() << std::endl;
-
-            while (true)
-            {
-                value_t tmp = queue.pop();
-                if (tmp != generics::empty_val)
-                {
-                    leftovers += tmp;
-                }
-                else
-                {
-                    break;
-                }
-                small_counter++;
-            }
-            std::cout << "Size of queue at the end: " << queue.get_size()
-                      << std::endl;
-            std::cout << " I tried to pop at the end " << small_counter
-                      << std::endl;
-
+#pragma omp barrier
+            value_t leftovers = count_leftovers_n_empty(queue);
             if (!verify_correctness(counters, leftovers))
                 std::cerr << "Something went terribly wrong" << std::endl;
 
             update_results(results, counters);
-            std::cout << "\n\n";
+        } // End for loop repetition
+
+        calc_results(results, config);
+    }
+
+    value_t count_leftovers_n_empty(BaseQueue &queue)
+    {
+        value_t leftovers = 0;
+
+        while (true)
+        {
+            value_t tmp = queue.pop();
+            if (tmp != generics::empty_val)
+            {
+                leftovers += tmp;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return leftovers;
+    }
+
+    void run_fast(BaseQueue &queue)
+    {
+        std::mt19937 global_rng(config.seed);
+
+        counters.resize(config.num_threads);
+
+        for (size_t i = 0; i < config.repetitions; i++)
+        {
+#pragma omp parallel num_threads(config.num_threads)
+            {
+                uint thread_id = omp_get_thread_num();
+                Counter &l_counter = counters[thread_id];
+                reset_counter(l_counter);
+
+                uint enqueue_batch_size = config.batch_enque[thread_id];
+                uint dequeue_batch_size = config.batch_deque[thread_id];
+                std::mt19937 thread_rng(config.seed + thread_id + 1);
+                double timeout = 0.0;
+
+                std::vector<value_t> push_elements =
+                    generate_batch_of_elements(enqueue_batch_size,
+                                               thread_rng);
+#pragma omp barrier
+                double t_start = omp_get_wtime();
+                while (omp_get_wtime() - t_start < config.max_time_in_s)
+                {
+
+                    for (size_t i = 0; i < enqueue_batch_size; i++)
+                    {
+                        if (queue.push(push_elements[i]))
+                            l_counter.succeeded_push++;
+                    }
+                    l_counter.total_push += enqueue_batch_size;
+
+                    for (size_t i = 0; i < dequeue_batch_size; i++)
+                    {
+                        if (queue.pop() != generics::empty_val)
+                            l_counter.succeeded_pop++;
+                    }
+                    l_counter.total_pop += dequeue_batch_size;
+                }
+                double t_end = omp_get_wtime();
+#pragma omp barrier
+
+                l_counter.total_operations =
+                    l_counter.total_pop + l_counter.total_push;
+                l_counter.time += t_end - t_start;
+                l_counter.timeout += timeout;
+
+            } // End parallel
+
+            update_results(results, counters);
         } // End for loop repetition
 
         calc_results(results, config);
@@ -352,6 +426,25 @@ class Benchmark
                   << results.total_succeded_dequeues << "\n";
         std::cout << "  Total enqueues: " << results.total_enqueues << "\n";
         std::cout << "  Total dequeues: " << results.total_dequeues << "\n";
+    };
+
+    void print_csv(std::string const &name, bool header = false) const
+    {
+        if (header)
+        {
+            std::cout << "name,n_threads,avg_time,avg_timeout,operations,s_enq,s_deq,enq,deq\n";
+        }
+
+        std::cout << name << ",";
+        std::cout << config.num_threads << ",";
+        std::cout << results.avg_time << ",";
+        std::cout << results.avg_timeout << ",";
+        std::cout << results.total_n_operations << ",";
+        std::cout << results.total_succeded_enqueues << ",";
+        std::cout << results.total_succeded_dequeues << ",";
+        std::cout << results.total_enqueues << ",";
+        std::cout << results.total_dequeues;
+        std::cout << std::endl;
     };
     void save_results(std::filesystem::path const &output) const {};
 };

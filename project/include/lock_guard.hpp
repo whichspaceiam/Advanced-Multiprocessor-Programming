@@ -47,9 +47,13 @@ class ConcurrentQueue: public BaseQueue
         omp_unset_lock(&global_lock);
         return to_rtn;
     }
-
-    int get_size() const override{
-        return q.get_size();
+    
+    int get_size() override{
+        int size;
+        omp_set_lock(&global_lock);
+        size = q.get_size();
+        omp_unset_lock(&global_lock);
+        return size;
     }
 };
 }; // namespace global_lock

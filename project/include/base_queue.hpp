@@ -9,6 +9,6 @@ class BaseQueue{
 
     virtual bool push(value_t v)= 0;
     virtual value_t pop()=0;
-    virtual int get_size() const =0;
+    virtual int get_size() =0;
     virtual ~BaseQueue() = default; 
 };

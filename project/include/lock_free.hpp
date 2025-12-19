@@ -17,16 +17,17 @@ locks.
 #include <omp.h>
 #include <unordered_set>
 #include <vector>
-
 namespace lock_free
 {
-    using value_t = generics::value_t; // To be changed if one will
+    using value_t = generics::value_t;
     value_t empty_val = generics::empty_val;
 
     struct Node
     {
         std::atomic<Node *> next;
         value_t value;
+        
+        Node() : next(nullptr), value(empty_val) {}
     };
 
     class FreeList
@@ -43,45 +44,40 @@ namespace lock_free
             while (walker != nullptr)
             {
                 Node *current = walker;
-                walker = walker->next;
+                walker = walker->next.load(std::memory_order_relaxed);
                 delete current;
             }
         }
 
-        // FreeList(FreeList const &other) = delete;
-        // // FreeList(FreeList &&other) = delete;
-        // FreeList &operator=(FreeList const &other) = delete;
-        // // FreeList &operator=(FreeList &&other) = delete;
-
-        // RULE OF 5 IMPLEMNTATION OF COPY CONSTRUCTORS AND SO ON
-
         // Copy constructor (deep copy)
-        FreeList(const FreeList &other)
+        FreeList(const FreeList &other) : header(nullptr), size(0)
         {
             if (!other.header)
             {
-                header = nullptr;
                 return;
             }
 
             // Copy first node
             header = new Node;
             header->value = other.header->value;
+            header->next.store(nullptr, std::memory_order_relaxed);
 
             Node *cur_this = header;
-            Node *cur_other = other.header->next;
+            Node *cur_other = other.header->next.load(std::memory_order_relaxed);
 
             // Copy the rest of the nodes
             while (cur_other)
             {
                 Node *n = new Node;
                 n->value = cur_other->value;
-                n->next = nullptr;
+                n->next.store(nullptr, std::memory_order_relaxed);
 
-                cur_this->next = n;
+                cur_this->next.store(n, std::memory_order_relaxed);
                 cur_this = n;
-                cur_other = cur_other->next;
+                cur_other = cur_other->next.load(std::memory_order_relaxed);
+                size++;
             }
+            size++; // Count the header node
         }
 
         // Copy assignment (deep copy)
@@ -95,42 +91,47 @@ namespace lock_free
             while (walker)
             {
                 Node *current = walker;
-                walker = walker->next;
+                walker = walker->next.load(std::memory_order_relaxed);
                 delete current;
             }
 
-            // Copy new list (same as copy ctor)
+            header = nullptr;
+            size = 0;
+
+            // Copy new list
             if (!other.header)
             {
-                header = nullptr;
                 return *this;
             }
 
             header = new Node;
             header->value = other.header->value;
+            header->next.store(nullptr, std::memory_order_relaxed);
 
             Node *cur_this = header;
-            Node *cur_other = other.header->next;
+            Node *cur_other = other.header->next.load(std::memory_order_relaxed);
 
             while (cur_other)
             {
                 Node *n = new Node;
                 n->value = cur_other->value;
-                n->next = nullptr;
+                n->next.store(nullptr, std::memory_order_relaxed);
 
-                cur_this->next = n;
+                cur_this->next.store(n, std::memory_order_relaxed);
                 cur_this = n;
-                cur_other = cur_other->next;
+                cur_other = cur_other->next.load(std::memory_order_relaxed);
+                size++;
             }
+            size++; // Count the header node
 
             return *this;
         }
 
         // Move constructor
-        FreeList(FreeList &&other) noexcept
+        FreeList(FreeList &&other) noexcept : header(other.header), size(other.size)
         {
-            header = other.header;
             other.header = nullptr;
+            other.size = 0;
         }
 
         // Move assignment
@@ -138,25 +139,26 @@ namespace lock_free
         {
             if (this != &other)
             {
-                // delete current
+                // Delete current
                 Node *walker = header;
                 while (walker)
                 {
                     Node *current = walker;
-                    walker = walker->next;
+                    walker = walker->next.load(std::memory_order_relaxed);
                     delete current;
                 }
 
                 header = other.header;
+                size = other.size;
                 other.header = nullptr;
+                other.size = 0;
             }
             return *this;
         }
-        /// END OF COPY CONSTRUCTORS
 
         void push(Node *n)
         {
-            n->next = header;
+            n->next.store(header, std::memory_order_relaxed);
             header = n;
             size++;
         }
@@ -166,49 +168,51 @@ namespace lock_free
             if (header == nullptr)
                 return nullptr;
 
+            // Check if header matches
             if (header->value == val)
             {
                 Node *to_rtn = header;
-                header = header->next;
+                header = header->next.load(std::memory_order_relaxed);
                 size--;
                 return to_rtn;
             }
 
+            // Search through the list
             Node *walker = header;
-            while (walker->next != nullptr)
+            while (walker->next.load(std::memory_order_relaxed) != nullptr)
             {
-                Node *next_ptr = static_cast<Node *>(walker->next);
+                Node *next_ptr = walker->next.load(std::memory_order_relaxed);
                 if (next_ptr->value == val)
                 {
-                    auto to_rtn = next_ptr;
-                    next_ptr = static_cast<Node *>(next_ptr->next);
+                    Node *to_rtn = next_ptr;
+                    // **FIX: Properly update the link**
+                    walker->next.store(next_ptr->next.load(std::memory_order_relaxed), 
+                                      std::memory_order_relaxed);
                     size--;
                     return to_rtn;
                 }
-                walker = walker->next.load();
+                walker = next_ptr;
             }
 
             return nullptr;
         }
+        
+        unsigned int get_size() const { return size; }
     };
 
     class Queue : public BaseQueue
-    { // FIFO
+    {
         std::atomic<Node *> header;
         std::atomic<Node *> tail;
 
         std::vector<FreeList> freelists;
         std::atomic<int> size;
-        omp_lock_t header_lock;
-        omp_lock_t tail_lock;
 
     public:
-        int header_tail_condition = 0;
-        int null_header_cnt = 0;
         Queue()
         {
             Node *h = new Node;
-            h->next = nullptr;
+            h->next.store(nullptr, std::memory_order_relaxed);
             h->value = empty_val;
 
             header.store(h, std::memory_order_relaxed);
@@ -226,10 +230,10 @@ namespace lock_free
             while (walker != nullptr)
             {
                 Node *current = walker;
-                walker = walker->next;
+                walker = walker->next.load(std::memory_order_relaxed);
                 delete current;
             }
-        };
+        }
 
         bool push(value_t val) override
         {
@@ -238,30 +242,44 @@ namespace lock_free
             if (n == nullptr)
             {
                 n = new Node;
-                n->value = val;
             }
-            n->next = nullptr;
+            n->value = val;
+            n->next.store(nullptr, std::memory_order_relaxed);
 
             while (true)
             {
-                Node *expected = nullptr;
-                Node *last = tail.load();
-                Node *next = last->next;
+                Node *last = tail.load(std::memory_order_acquire);
+                Node *next = last->next.load(std::memory_order_acquire);
 
-                if (next == nullptr)
+                // Check if tail is still consistent
+                if (last == tail.load(std::memory_order_acquire))
                 {
-                    if (std::atomic_compare_exchange_weak(
-                            &(last->next), &expected, n))
+                    if (next == nullptr)
                     {
-                        tail.compare_exchange_weak(
-                            last, n, std::memory_order_release, std::memory_order_relaxed);
-                        size.fetch_add(1, std::memory_order_relaxed);
-                        return true;
+                        // **FIX: expected must be nullptr for each attempt**
+                        Node *expected = nullptr;
+                        if (last->next.compare_exchange_weak(
+                                expected, n,
+                                std::memory_order_release,
+                                std::memory_order_relaxed))
+                        {
+                            // Try to swing tail to the new node
+                            tail.compare_exchange_strong(
+                                last, n,
+                                std::memory_order_release,
+                                std::memory_order_relaxed);
+                            size.fetch_add(1, std::memory_order_relaxed);
+                            return true;
+                        }
                     }
-                }
-                else
-                {
-                    tail.compare_exchange_weak(last, next, std::memory_order_release, std::memory_order_relaxed);
+                    else
+                    {
+                        // Help other threads by swinging tail forward
+                        tail.compare_exchange_weak(
+                            last, next,
+                            std::memory_order_release,
+                            std::memory_order_relaxed);
+                    }
                 }
             }
         }
@@ -272,42 +290,69 @@ namespace lock_free
 
             while (true)
             {
-
                 Node *first = header.load(std::memory_order_acquire);
                 Node *last_ptr = tail.load(std::memory_order_acquire);
                 Node *next = first->next.load(std::memory_order_acquire);
 
-                if (first == last_ptr)
+                // Check if header is still consistent
+                if (first == header.load(std::memory_order_acquire))
                 {
-                    if (next == nullptr)
+                    if (first == last_ptr)
                     {
-                        return empty_val; // queue is empty
+                        if (next == nullptr)
+                        {
+                            return empty_val; // Queue is empty
+                        }
+                        // Tail is falling behind, help swing it forward
+                        tail.compare_exchange_weak(
+                            last_ptr, next,
+                            std::memory_order_release,
+                            std::memory_order_relaxed);
                     }
-                    tail.compare_exchange_weak(last_ptr, next,
-                                               std::memory_order_release,
-                                               std::memory_order_relaxed);
-                }
-                else
-                {
-                    value_t val = next->value;
-                    if (header.compare_exchange_weak(first, next, std::memory_order_relaxed))
+                    else
                     {
-                        size.fetch_sub(1, std::memory_order_relaxed);
-                        return val;
+                        if (next == nullptr)
+                        {
+                            // Inconsistent state, retry
+                            continue;
+                        }
+
+                        value_t val = next->value;
+                        
+                        // Try to swing header to the next node
+                        if (header.compare_exchange_weak(
+                                first, next,
+                                std::memory_order_release,
+                                std::memory_order_relaxed))
+                        {
+                            size.fetch_sub(1, std::memory_order_relaxed);
+                            // Recycle the old dummy node
+                            freelists[tid].push(first);
+                            return val;
+                        }
                     }
                 }
             }
         }
 
-        int get_size() const override { return size.load(); }
+        int get_size() override 
+        { 
+            return size.load(std::memory_order_relaxed); 
+        }
 
-        Node const *get_head() const { return header; }
-        Node const *get_tail() const { return tail; }
+        Node const *get_head() const 
+        { 
+            return header.load(std::memory_order_acquire); 
+        }
+        
+        Node const *get_tail() const 
+        { 
+            return tail.load(std::memory_order_acquire); 
+        }
 
         Queue(Queue const &other) = delete;
-        Queue(Queue const &&other) = delete;
-
+        Queue(Queue &&other) = delete;
         Queue &operator=(Queue const &other) = delete;
-        Queue &operator=(Queue const &&other) = delete;
+        Queue &operator=(Queue &&other) = delete;
     };
-}; // namespace finelock
+}

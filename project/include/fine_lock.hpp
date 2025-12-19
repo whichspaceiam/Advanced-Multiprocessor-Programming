@@ -18,125 +18,77 @@ locks.
 
 namespace finelock
 {
-using value_t = generics::value_t; // To be changed if one will
-value_t empty_val = generics::empty_val;
+    using value_t = generics::value_t; // To be changed if one will
+    value_t empty_val = generics::empty_val;
 
-struct Node
-{
-    Node *next;
-    value_t value;
-};
-
-class FreeList
-{
-    Node *header = nullptr;
-    unsigned int size = 0;
-
-  public:
-    FreeList() = default;
-
-    ~FreeList()
+    struct Node
     {
-        Node *walker = header;
-        while (walker != nullptr)
-        {
-            Node *current = walker;
-            walker = walker->next;
-            delete current;
-        }
-    }
+        Node *next;
+        value_t value;
+    };
 
-    // FreeList(FreeList const &other) = delete;
-    // // FreeList(FreeList &&other) = delete;
-    // FreeList &operator=(FreeList const &other) = delete;
-    // // FreeList &operator=(FreeList &&other) = delete;
-
-    // RULE OF 5 IMPLEMNTATION OF COPY CONSTRUCTORS AND SO ON
-
-    // Copy constructor (deep copy)
-    FreeList(const FreeList &other)
+    class FreeList
     {
-        if (!other.header)
+        Node *header = nullptr;
+        unsigned int size = 0;
+
+    public:
+        FreeList() = default;
+
+        ~FreeList()
         {
-            header = nullptr;
-            return;
+            Node *walker = header;
+            while (walker != nullptr)
+            {
+                Node *current = walker;
+                walker = walker->next;
+                delete current;
+            }
         }
 
-        // Copy first node
-        header = new Node;
-        header->value = other.header->value;
+        // FreeList(FreeList const &other) = delete;
+        // // FreeList(FreeList &&other) = delete;
+        // FreeList &operator=(FreeList const &other) = delete;
+        // // FreeList &operator=(FreeList &&other) = delete;
 
-        Node *cur_this = header;
-        Node *cur_other = other.header->next;
+        // RULE OF 5 IMPLEMNTATION OF COPY CONSTRUCTORS AND SO ON
 
-        // Copy the rest of the nodes
-        while (cur_other)
+        // Copy constructor (deep copy)
+        FreeList(const FreeList &other)
         {
-            Node *n = new Node;
-            n->value = cur_other->value;
-            n->next = nullptr;
+            if (!other.header)
+            {
+                header = nullptr;
+                return;
+            }
 
-            cur_this->next = n;
-            cur_this = n;
-            cur_other = cur_other->next;
-        }
-    }
+            // Copy first node
+            header = new Node;
+            header->value = other.header->value;
 
-    // Copy assignment (deep copy)
-    FreeList &operator=(const FreeList &other)
-    {
-        if (this == &other)
-            return *this;
+            Node *cur_this = header;
+            Node *cur_other = other.header->next;
 
-        // Delete current list
-        Node *walker = header;
-        while (walker)
-        {
-            Node *current = walker;
-            walker = walker->next;
-            delete current;
-        }
+            // Copy the rest of the nodes
+            while (cur_other)
+            {
+                Node *n = new Node;
+                n->value = cur_other->value;
+                n->next = nullptr;
 
-        // Copy new list (same as copy ctor)
-        if (!other.header)
-        {
-            header = nullptr;
-            return *this;
+                cur_this->next = n;
+                cur_this = n;
+                cur_other = cur_other->next;
+            }
         }
 
-        header = new Node;
-        header->value = other.header->value;
-
-        Node *cur_this = header;
-        Node *cur_other = other.header->next;
-
-        while (cur_other)
+        // Copy assignment (deep copy)
+        FreeList &operator=(const FreeList &other)
         {
-            Node *n = new Node;
-            n->value = cur_other->value;
-            n->next = nullptr;
+            if (this == &other)
+                return *this;
 
-            cur_this->next = n;
-            cur_this = n;
-            cur_other = cur_other->next;
-        }
-
-        return *this;
-    }
-
-    // Move constructor
-    FreeList(FreeList &&other) noexcept
-    {
-        header = other.header;
-        other.header = nullptr;
-    }
-
-    // Move assignment
-    FreeList &operator=(FreeList &&other) noexcept
-    {
-        if (this != &other)
-        {
-            // delete current
+            // Delete current list
             Node *walker = header;
             while (walker)
             {
@@ -145,50 +97,97 @@ class FreeList
                 delete current;
             }
 
+            // Copy new list (same as copy ctor)
+            if (!other.header)
+            {
+                header = nullptr;
+                return *this;
+            }
+
+            header = new Node;
+            header->value = other.header->value;
+
+            Node *cur_this = header;
+            Node *cur_other = other.header->next;
+
+            while (cur_other)
+            {
+                Node *n = new Node;
+                n->value = cur_other->value;
+                n->next = nullptr;
+
+                cur_this->next = n;
+                cur_this = n;
+                cur_other = cur_other->next;
+            }
+
+            return *this;
+        }
+
+        // Move constructor
+        FreeList(FreeList &&other) noexcept
+        {
             header = other.header;
             other.header = nullptr;
         }
-        return *this;
-    }
-    /// END OF COPY CONSTRUCTORS
 
-    void push(Node *n)
-    {
-        n->next = header;
-        header = n;
-        size++;
-    }
-
-    Node *get(value_t val)
-    {
-        if (header == nullptr)
-            return nullptr;
-
-        if (header->value == val)
+        // Move assignment
+        FreeList &operator=(FreeList &&other) noexcept
         {
-            Node *to_rtn = header;
-            header = header->next;
-            size--;
-            return to_rtn;
+            if (this != &other)
+            {
+                // delete current
+                Node *walker = header;
+                while (walker)
+                {
+                    Node *current = walker;
+                    walker = walker->next;
+                    delete current;
+                }
+
+                header = other.header;
+                other.header = nullptr;
+            }
+            return *this;
+        }
+        /// END OF COPY CONSTRUCTORS
+
+        void push(Node *n)
+        {
+            n->next = header;
+            header = n;
+            size++;
         }
 
-        auto walker = header;
-        while (walker->next != nullptr)
+        Node *get(value_t val)
         {
-            if (walker->next->value == val)
+            if (header == nullptr)
+                return nullptr;
+
+            if (header->value == val)
             {
-                auto to_rtn = walker->next;
-                walker->next = walker->next->next;
+                Node *to_rtn = header;
+                header = header->next;
                 size--;
                 return to_rtn;
             }
-            walker = walker->next;
+
+            auto walker = header;
+            while (walker->next != nullptr)
+            {
+                if (walker->next->value == val)
+                {
+                    auto to_rtn = walker->next;
+                    walker->next = walker->next->next;
+                    size--;
+                    return to_rtn;
+                }
+                walker = walker->next;
+            }
+
+            return nullptr;
         }
-
-        return nullptr;
-    }
-};
-
+    };
 class Queue : public BaseQueue
 { // FIFO
     Node *header;
@@ -199,9 +198,7 @@ class Queue : public BaseQueue
     omp_lock_t header_lock;
     omp_lock_t tail_lock;
 
-  public:
-    int header_tail_condition = 0;
-    int null_header_cnt = 0;
+public:
     Queue()
     {
         omp_init_lock(&header_lock);
@@ -240,14 +237,11 @@ class Queue : public BaseQueue
         }
         n->next = nullptr;
 
-
         omp_set_lock(&tail_lock);
         tail->next = n;
         tail = n;
-        omp_unset_lock(&tail_lock);
-        
-        
         size++;
+        omp_unset_lock(&tail_lock);
 
         return true;
     }
@@ -264,41 +258,47 @@ class Queue : public BaseQueue
             omp_unset_lock(&header_lock);
             return empty_val;
         }
+
         value_t val = current->value;
 
-        if (size < 2)
+        // If current->next is nullptr, we might be removing the tail
+        if (current->next == nullptr)
         {
-
             omp_set_lock(&tail_lock);
-            header->next = current->next;
+            
+            // Remove current from the queue
+            header->next = current->next;  // Will be nullptr
+            
+            // Update tail if we actually removed it
             if (current == tail)
+            {
                 tail = header;
-
+            }
+            
+            size--;
             omp_unset_lock(&tail_lock);
+            omp_unset_lock(&header_lock);
         }
         else
         {
             header->next = current->next;
+            size--;
+            omp_unset_lock(&header_lock);
         }
-        
-        omp_unset_lock(&header_lock);
 
-
-        --size;
         freelists[tid].push(current);
-
         return val;
     }
 
-    int get_size() const override { return size.load(); }
+    int get_size() override { return size.load(); }
 
     Node const *get_head() const { return header; }
     Node const *get_tail() const { return tail; }
 
     Queue(Queue const &other) = delete;
-    Queue(Queue const &&other) = delete;
+    Queue(Queue &&other) = delete;  // ✅ Fixed syntax
 
     Queue &operator=(Queue const &other) = delete;
-    Queue &operator=(Queue const &&other) = delete;
+    Queue &operator=(Queue &&other) = delete;  // ✅ Fixed syntax
 };
 }; // namespace finelock

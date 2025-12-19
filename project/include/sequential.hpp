@@ -139,15 +139,15 @@ class Queue: public BaseQueue
         return val;
     }
 
-    int get_size() const override {return size;}
+    int get_size() override {return size;}
 
     Node const *get_head() const { return header; }
     Node const *get_tail() const { return tail; }
 
     Queue(Queue const &other) = delete;
-    Queue(Queue const &&other) = delete;
+    Queue(Queue &&other) = delete;
 
     Queue &operator=(Queue const &other) = delete;
-    Queue &operator=(Queue const &&other) = delete;
+    Queue &operator=(Queue &&other) = delete;
 };
 }; // namespace seq
