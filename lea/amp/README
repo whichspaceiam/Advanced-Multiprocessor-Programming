@@ -1,0 +1,63 @@
+Advanced Multiprocessor Programming 
+
+
+## Authors
+
+-
+-
+- Lea Rois (11810807) (e11810807@student.tuwien.ac.at)
+
+
+## Project Structure
+├── src/ # C++ Implementierung der Queues
+├── includes/ # Header-Dateien
+├── build/ # Kompilierte Objekte / Executable
+├── data/ # Benchmark-Ergebnisse CSV
+├── plots/ # Erzeugte Plots
+├── report/ # LaTeX Report
+├── Makefile # Build-System
+├── run_nebula.sh # Skript zum Ausführen auf Nebula
+├── benchmark_large.py # Python-Benchmark-Suite
+├── evaluation.py # Python-Script zum Plotten der Ergebnisse
+
+├── README.md # Dieses Dokument
+
+
+## Build Instructions
+
+'''
+make 
+
+'''
+
+Concurrent Library
+-------------------------------
+
+This example benchmarks a concurrent library (the one for books).
+
+  make small-bench
+
+Runs a small benchmark that takes approximately 1 minute
+to finish. The results are stored time-stamped in data/.
+
+  make small-plot
+
+Produces two plots of the small benchmark data. It
+automatically chooses the latest timestamped run in data/.
+
+You can use run_nebula.sh to automatically copy your .zip
+archive to nebula and run some make target there. The syntax is
+
+  run_nebula.sh [project.zip] [Makefile target]
+
+The gathered data is then automatically scp'd back into your
+data/ folder.
+
+Prerequisites
+-----------------------------
+
+What is needed:
+
+* C compiler
+* GNU Make
+* Python version at least 3.6

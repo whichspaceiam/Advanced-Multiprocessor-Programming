@@ -1,0 +1,36 @@
+Archive:  project.zip
+  inflating: uut/Makefile            
+  inflating: uut/README              
+  inflating: uut/src/base_queue.hpp  
+  inflating: uut/src/benchmark.hpp   
+  inflating: uut/src/fine_lock.hpp   
+  inflating: uut/src/generics.hpp    
+  inflating: uut/src/library.cpp     
+  inflating: uut/src/lock_free_aba.hpp  
+  inflating: uut/src/lock_guard.hpp  
+  inflating: uut/src/sequential.hpp  
+  inflating: uut/report/report.tex   
+  inflating: uut/run_nebula.sh       
+   creating: uut/includes/
+  inflating: uut/includes/timer.hpp  
+  inflating: uut/plots/avg_plot.tex  
+  inflating: uut/plots/efficiency.png  
+  inflating: uut/plots/speedup.png   
+  inflating: uut/plots/throughput.png  
+  inflating: uut/plots/efficiency_loca.png  
+  inflating: uut/plots/speedup_loca.png  
+  inflating: uut/plots/throughput_loca.png  
+  inflating: uut/plots/throughput_local.png  
+  inflating: uut/plots/speedup_local.png  
+  inflating: uut/plots/efficiency_local.png  
+  inflating: uut/src/test            
+  inflating: uut/src/test_tsan       
+[0;31mCleaning build artifacts...[0m  
+rm -rf build
+[0;34mCreating build directory...[0m  
+mkdir -p build
+[0;33mCompiling src/library.cpp...[0m  
+g++ -std=c++20 -MMD -MP -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O3 -march=native -mtune=native -flto -ffast-math -funroll-loops -finline-functions -DNDEBUG   -fopenmp -Iincludes -c src/library.cpp -o build/library.o
+[0;34mLinking queue...[0m  
+g++ build/library.o -fopenmp -flto -lpthread -o build/queue
+[0;32m✓ Build complete: build/queue[0m  

@@ -1,0 +1,2 @@
+name,n_threads,avg_time,avg_timeout,operations,s_enq,s_deq,enq,deq
+lock_free,20,0.100062,0,816263352513538077,68015,1604815499794667515,68216,816263352513470048
