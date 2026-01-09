@@ -1,135 +1,7 @@
 #pragma once
-#include <immintrin.h> // For _mm_pause()
+#include <immintrin.h>
 #include "base_queue.hpp"
-
-template <typename T>
-class TaggedPointer
-{
-private:
-    std::atomic<uintptr_t> data;
-
-    static constexpr uintptr_t PTR_MASK = 0x0000FFFFFFFFFFFF;
-    static constexpr uintptr_t VERSION_MASK = 0xFFFF000000000000;
-    static constexpr int VERSION_SHIFT = 48;
-
-    static_assert(sizeof(void *) == 8, "64-bit platform required");
-
-    static uintptr_t pack(T *ptr, uint16_t version)
-    {
-        uintptr_t ptrVal = reinterpret_cast<uintptr_t>(ptr);
-        assert((ptrVal & PTR_MASK) == ptrVal && "Pointer exceeds 48-bit space");
-        return (ptrVal & PTR_MASK) | (static_cast<uintptr_t>(version) << VERSION_SHIFT);
-    }
-
-    static T *extractPointer(uintptr_t val)
-    {
-        return reinterpret_cast<T *>(val & PTR_MASK);
-    }
-
-    static uint16_t extractVersion(uintptr_t val)
-    {
-        return static_cast<uint16_t>((val & VERSION_MASK) >> VERSION_SHIFT);
-    }
-
-public:
-    TaggedPointer(T *ptr = nullptr, uint16_t version = 0)
-        : data(pack(ptr, version))
-    {
-    }
-
-    // Copy constructor - use initializer list! ✅
-    TaggedPointer(const TaggedPointer &other)
-        : data(other.data.load(std::memory_order_acquire))
-    {
-    }
-
-    // Copy assignment
-    TaggedPointer &operator=(const TaggedPointer &other)
-    {
-        if (this != &other)
-        {
-            data.store(other.data.load(std::memory_order_acquire),
-                       std::memory_order_release);
-        }
-        return *this;
-    }
-
-    // Move constructor - actually moves! ✅
-    TaggedPointer(TaggedPointer &&other) noexcept
-        : data(other.data.exchange(pack(nullptr, 0), std::memory_order_acq_rel))
-    {
-    }
-
-    // Move assignment
-    TaggedPointer &operator=(TaggedPointer &&other) noexcept
-    {
-        if (this != &other)
-        {
-            data.store(other.data.exchange(pack(nullptr, 0), std::memory_order_acq_rel),
-                       std::memory_order_release);
-        }
-        return *this;
-    }
-
-    ~TaggedPointer() = default;
-
-    T *getPointer(std::memory_order order = std::memory_order_acquire) const
-    {
-        return extractPointer(data.load(order));
-    }
-
-    uint16_t getVersion(std::memory_order order = std::memory_order_acquire) const
-    {
-        return extractVersion(data.load(order));
-    }
-
-    std::pair<T *, uint16_t> load(std::memory_order order = std::memory_order_acquire) const
-    {
-        uintptr_t val = data.load(order);
-        return {extractPointer(val), extractVersion(val)};
-    }
-
-    void store(T *ptr, uint16_t version,
-               std::memory_order order = std::memory_order_release)
-    {
-        data.store(pack(ptr, version), order);
-    }
-
-    void get(T **outPtr, uint16_t *outVersion,
-             std::memory_order order = std::memory_order_acquire) const
-    {
-        if (!outPtr || !outVersion)
-        {
-            return;
-        }
-
-        uintptr_t val = data.load(order);
-        *outPtr = extractPointer(val);
-        *outVersion = extractVersion(val);
-    }
-
-    bool compareAndSet(T *&expectedPtr, uint16_t &expectedVer,
-                       T *newPtr, uint16_t newVer,
-                       std::memory_order success = std::memory_order_release,
-                       std::memory_order failure = std::memory_order_relaxed)
-    {
-        uintptr_t expected = pack(expectedPtr, expectedVer);
-        uintptr_t desired = pack(newPtr, newVer);
-
-        bool result = data.compare_exchange_strong(expected, desired, success, failure);
-
-        if (!result)
-        {
-            // Update expected with actual value
-            expectedPtr = extractPointer(expected);
-            expectedVer = extractVersion(expected);
-        }
-
-        return result;
-    }
-};
-
-////
+#include "tagged_ptr.hpp"
 
 namespace lock_free_aba
 {
@@ -204,100 +76,175 @@ namespace lock_free_aba
 
         size_t get_size() const { return size; }
     };
-   class Queue : public BaseQueue
-{
-    alignas(64) TaggedPointer<Node> header;
-    alignas(64) TaggedPointer<Node> tail;
-    alignas(64) std::vector<FreeList> freelists;
-    alignas(64) std::atomic<int> size;
-
-public:
-    Queue()
+    class Queue : public BaseQueue
     {
-        Node *h = new Node;
-        h->next.store(nullptr, 0, std::memory_order_relaxed);
-        h->value = empty_val;
+        alignas(64) TaggedPointer<Node> header;
+        alignas(64) TaggedPointer<Node> tail;
+        alignas(64) std::vector<FreeList> freelists;
+        alignas(64) std::atomic<int> size;
 
-        header.store(h, 0, std::memory_order_relaxed);
-        tail.store(h, 0, std::memory_order_relaxed);
-        size.store(0, std::memory_order_relaxed);
-
-        int n_threads = omp_get_max_threads();
-        freelists.reserve(n_threads);
-        for (int i = 0; i < n_threads; ++i)
+    public:
+        Queue()
         {
-            freelists.emplace_back();
-        }
-    }
+            Node *h = new Node;
+            h->next.store(nullptr, 0, std::memory_order_relaxed);
+            h->value = empty_val;
 
-    ~Queue()
-    {
-        Node *walker = header.getPointer(std::memory_order_relaxed);
-        while (walker)
-        {
-            Node *current = walker;
-            walker = walker->next.getPointer(std::memory_order_relaxed);
-            delete current;
-        }
+            header.store(h, 0, std::memory_order_relaxed);
+            tail.store(h, 0, std::memory_order_relaxed);
+            size.store(0, std::memory_order_relaxed);
 
-        for (auto& freelist : freelists)
-        {
-            Node* node;
-            while ((node = freelist.pop()) != nullptr)
+            int n_threads = omp_get_max_threads();
+            freelists.reserve(n_threads);
+            for (int i = 0; i < n_threads; ++i)
             {
-                delete node;
+                freelists.emplace_back();
             }
         }
-    }
 
-    bool push(value_t val) override
-    {
-        int tid = omp_get_thread_num();
-        FreeList &freelist = freelists[tid];
-
-        Node *n = freelist.pop();
-        if (n == nullptr)
+        ~Queue()
         {
-            n = new Node;
-        }
-
-        n->value = val;
-        n->next.store(nullptr, 0, std::memory_order_relaxed);
-
-        int backoff = 1;
-
-        while (true)
-        {
-            Node *last;
-            uint16_t tailVer;
-            tail.get(&last, &tailVer, std::memory_order_acquire);
-
-            Node *next;
-            uint16_t nextVer;
-            last->next.get(&next, &nextVer, std::memory_order_acquire);
-
-            Node *currentTail;
-            uint16_t currentTailVer;
-            tail.get(&currentTail, &currentTailVer, std::memory_order_relaxed);
-
-            if (currentTail != last)
+            Node *walker = header.getPointer(std::memory_order_relaxed);
+            while (walker)
             {
-                backoff = 1;
-                continue;
+                Node *current = walker;
+                walker = walker->next.getPointer(std::memory_order_relaxed);
+                delete current;
             }
 
-            if (next == nullptr)
+            for (auto &freelist : freelists)
             {
-                if (last->next.compareAndSet(next, nextVer, n, nextVer + 1,
+                Node *node;
+                while ((node = freelist.pop()) != nullptr)
+                {
+                    delete node;
+                }
+            }
+        }
+
+        bool push(value_t val) override
+        {
+            int tid = omp_get_thread_num();
+            FreeList &freelist = freelists[tid];
+
+            Node *n = freelist.pop();
+            if (n == nullptr)
+            {
+                n = new Node;
+            }
+
+            n->value = val;
+            n->next.store(nullptr, 0, std::memory_order_relaxed);
+
+            int backoff = 1;
+
+            while (true)
+            {
+                Node *last;
+                uint16_t tailVer;
+                tail.get(&last, &tailVer, std::memory_order_acquire);
+
+                Node *next;
+                uint16_t nextVer;
+                last->next.get(&next, &nextVer, std::memory_order_acquire);
+
+                Node *currentTail;
+                uint16_t currentTailVer;
+                tail.get(&currentTail, &currentTailVer, std::memory_order_relaxed);
+
+                if (currentTail != last)
+                {
+                    backoff = 1;
+                    continue;
+                }
+
+                if (next == nullptr)
+                {
+                    if (last->next.compareAndSet(next, nextVer, n, nextVer + 1,
+                                                 std::memory_order_release,
+                                                 std::memory_order_acquire))
+                    {
+                        tail.compareAndSet(last, currentTailVer, n, currentTailVer + 1,
+                                           std::memory_order_release,
+                                           std::memory_order_relaxed);
+
+                        size.fetch_add(1, std::memory_order_relaxed);
+                        return true;
+                    }
+
+                    for (int i = 0; i < backoff; i++)
+                    {
+                        _mm_pause();
+                    }
+                    backoff = std::min(backoff * 2, 64);
+                }
+                else
+                {
+                    tail.compareAndSet(last, tailVer, next, tailVer + 1,
+                                       std::memory_order_release,
+                                       std::memory_order_relaxed);
+                    backoff = 1;
+                }
+            }
+        }
+
+        value_t pop() override
+        {
+            int tid = omp_get_thread_num();
+            FreeList &freelist = freelists[tid];
+            int backoff = 1;
+
+            while (true)
+            {
+                Node *first;
+                uint16_t headVer;
+                header.get(&first, &headVer, std::memory_order_acquire);
+
+                Node *last;
+                uint16_t tailVer;
+                tail.get(&last, &tailVer, std::memory_order_acquire);
+
+                Node *next;
+                uint16_t nextVer;
+                first->next.get(&next, &nextVer, std::memory_order_acquire);
+
+                Node *currentHead;
+                uint16_t currentHeadVer;
+                header.get(&currentHead, &currentHeadVer, std::memory_order_relaxed);
+
+                if (first != currentHead)
+                {
+                    continue;
+                }
+
+                if (first == last)
+                {
+                    if (next == nullptr)
+                    {
+                        return empty_val;
+                    }
+
+                    tail.compareAndSet(last, tailVer, next, tailVer + 1,
+                                       std::memory_order_release,
+                                       std::memory_order_relaxed);
+                }
+                else
+                {
+                    if (next == nullptr)
+                    {
+                        continue;
+                    }
+
+                    value_t val = next->value;
+
+                    if (header.compareAndSet(first, headVer, next, headVer + 1,
                                              std::memory_order_release,
                                              std::memory_order_acquire))
-                {
-                    tail.compareAndSet(last, currentTailVer, n, currentTailVer + 1,
-                                      std::memory_order_release,
-                                      std::memory_order_relaxed);
-                    
-                    size.fetch_add(1, std::memory_order_relaxed);
-                    return true;
+                    {
+                        freelist.push(first);
+                        size.fetch_sub(1, std::memory_order_relaxed);
+                        return val;
+                    }
                 }
 
                 for (int i = 0; i < backoff; i++)
@@ -306,92 +253,17 @@ public:
                 }
                 backoff = std::min(backoff * 2, 64);
             }
-            else
-            {
-                tail.compareAndSet(last, tailVer, next, tailVer + 1,
-                                   std::memory_order_release,
-                                   std::memory_order_relaxed);
-                backoff = 1;
-            }
         }
-    }
 
-    value_t pop() override
-    {
-        int tid = omp_get_thread_num();
-        FreeList &freelist = freelists[tid];
-        int backoff = 1;
-
-        while (true)
+        int get_size() override
         {
-            Node *first;
-            uint16_t headVer;
-            header.get(&first, &headVer, std::memory_order_acquire);
-
-            Node *last;
-            uint16_t tailVer;
-            tail.get(&last, &tailVer, std::memory_order_acquire);
-
-            Node *next;
-            uint16_t nextVer;
-            first->next.get(&next, &nextVer, std::memory_order_acquire);
-
-            Node *currentHead;
-            uint16_t currentHeadVer;
-            header.get(&currentHead, &currentHeadVer, std::memory_order_relaxed);
-
-            if (first != currentHead)
-            {
-                continue;
-            }
-
-            if (first == last)
-            {
-                if (next == nullptr)
-                {
-                    return empty_val;
-                }
-                
-                tail.compareAndSet(last, tailVer, next, tailVer + 1,
-                                   std::memory_order_release,
-                                   std::memory_order_relaxed);
-            }
-            else
-            {
-                if (next == nullptr)
-                {
-                    continue;
-                }
-
-                value_t val = next->value;
-
-                if (header.compareAndSet(first, headVer, next, headVer + 1,
-                                         std::memory_order_release,
-                                         std::memory_order_acquire))
-                {
-                    freelist.push(first);
-                    size.fetch_sub(1, std::memory_order_relaxed);
-                    return val;
-                }
-            }
-
-            for (int i = 0; i < backoff; i++)
-            {
-                _mm_pause();
-            }
-            backoff = std::min(backoff * 2, 64);
+            return size.load(std::memory_order_relaxed);
         }
-    }
 
-    int get_size() override
-    {
-        return size.load(std::memory_order_relaxed);
-    }
-
-    Queue(const Queue &) = delete;
-    Queue(Queue &&) = delete;
-    Queue &operator=(const Queue &) = delete;
-    Queue &operator=(Queue &&) = delete;
-};
+        Queue(const Queue &) = delete;
+        Queue(Queue &&) = delete;
+        Queue &operator=(const Queue &) = delete;
+        Queue &operator=(Queue &&) = delete;
+    };
 
 }

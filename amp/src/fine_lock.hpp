@@ -13,10 +13,6 @@ namespace fine_lock
         omp_lock_t header_lock;
         omp_lock_t tail_lock;
 
-        /**
-         * If the node exists in the freelist ite fetches it from there.
-         * Otherwise it creates a new one
-         */
         seq::Node *_get_node(value_t val, int tid)
         {
             seq::Node *n = freelists[tid].pop();
@@ -59,7 +55,7 @@ namespace fine_lock
 
         bool push(value_t val) override
         {
-            int tid = omp_get_thread_num(); 
+            int tid = omp_get_thread_num();
             seq::Node *n = _get_node(val, tid);
             n->next = nullptr;
 
