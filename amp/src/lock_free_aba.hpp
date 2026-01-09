@@ -47,7 +47,6 @@ namespace lock_free_aba
             other.size = 0;
         }
 
-        // ✅ FIXED: Just push any node
         void push(Node *n)
         {
             if (!n)
@@ -59,7 +58,6 @@ namespace lock_free_aba
             size++;
         }
 
-        // ✅ FIXED: Just pop any node (no search!)
         Node *pop()
         {
             Node *head = header.getPointer(std::memory_order_relaxed);
@@ -70,7 +68,6 @@ namespace lock_free_aba
             header.store(next, 0, std::memory_order_relaxed);
             size--;
 
-            // Caller will set the value
             return head;
         }
 

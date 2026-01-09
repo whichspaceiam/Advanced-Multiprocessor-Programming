@@ -14,15 +14,16 @@ struct Arguments
     int seed{42};
     int repetitions{1};
     int n_threads{1};
+    size_t batch_size{1000};
+    size_t prefill{0};
     std::string type{"sequential"};
     bool is_safe_run{false};
-    bool cache_checks{false};
     bool print_header{false};
 
     bool are_valid() const
     {
         // Validate config_recipe
-        if (config_recipe != "balanced" && config_recipe != "thread")
+        if (config_recipe != "balanced" && config_recipe != "thread" && config_recipe!="onetoall" && config_recipe!="evenodd")
         {
             std::cerr << "Error: config_recipe must be 'balanced' or 'thread', got: "
                       << config_recipe << std::endl;
@@ -30,7 +31,7 @@ struct Arguments
         }
 
         // Validate type
-        if (type != "global_lock" && type != "fine_lock" && type != "lock_free" && type !="sequential")
+        if (type != "global_lock" && type != "fine_lock" && type != "lock_free" && type != "sequential")
         {
             std::cerr << "Error: type must be 'global_lock', 'fine_lock', or 'lock_free', got: "
                       << type << std::endl;
@@ -61,11 +62,6 @@ struct Arguments
             return false;
         }
 
-        if (is_safe_run && cache_checks)
-        {
-            std::cerr << "Safe run and cahce checks cannot be used at the same time. First do a benchmark with safe run and then cache checks. The reason is that safe run introduces overheads that will produce false resutls for the cache hits." << std::endl;
-        }
-
         if (repetitions <= 0)
         {
             std::cerr << "Error: repetitions must be > 0, got: " << repetitions << std::endl;
@@ -75,13 +71,6 @@ struct Arguments
         if (n_threads <= 0)
         {
             std::cerr << "Error: n_threads must be > 0, got: " << n_threads << std::endl;
-            return false;
-        }
-
-        // Validate cache_checks constraint
-        if (cache_checks && type != "lock_free")
-        {
-            std::cerr << "Error: cache_checks can only be used with type='lock_free'" << std::endl;
             return false;
         }
 
@@ -159,9 +148,17 @@ Arguments parse(int argc, char *argv[])
             {
                 args.is_safe_run = true;
             }
-            else if (arg == "--cache_checks")
+            else if (arg == "--prefill")
             {
-                args.cache_checks = true;
+                std::string val = get_next_value();
+                if (!val.empty())
+                    args.prefill = std::stoi(val);
+            }
+            else if (arg == "--batch_size")
+            {
+                std::string val = get_next_value();
+                if (!val.empty())
+                    args.batch_size = std::stoi(val);
             }
             else if (arg == "--print_header")
             {
@@ -201,7 +198,11 @@ int main(int argc, char *argv[])
     // FIXED: Safe map access with validation
     std::map<std::string, ConfigRecipe> config_recipe_map{
         {"balanced", ConfigRecipe::Balanced},
-        {"thread", ConfigRecipe::ThreadSpecific}};
+        {"thread", ConfigRecipe::UpperHalf},
+        {"evenodd", ConfigRecipe::EvenOdd},
+        {"onetoall", ConfigRecipe::OneToAll}
+
+    };
 
     // This is now safe because are_valid() checks config_recipe
     Config config = ConfigFactory{
@@ -210,9 +211,9 @@ int main(int argc, char *argv[])
         args.max_time,
         args.sets,
         args.seed,
-        config_recipe_map[args.config_recipe]}();
+        config_recipe_map[args.config_recipe]}(args.batch_size);
 
-    Benchmark benchmark{std::move(config)};
+    Benchmark benchmark{std::move(config), args.prefill};
 
     std::unique_ptr<BaseQueue> queue;
     if (args.type == "global_lock")
@@ -230,8 +231,9 @@ int main(int argc, char *argv[])
     else if (args.type == "sequential")
     {
         // std::cout<<"Sequential mode"<<args.n_threads<<std::endl;
-        if(args.n_threads!=1){
-            std::cerr<<" n_threads>1 in sequential benchmark !!!"<<std::endl;
+        if (args.n_threads != 1)
+        {
+            std::cerr << " n_threads>1 in sequential benchmark !!!" << std::endl;
             std::abort();
         }
         queue = std::make_unique<seq::Queue>();
@@ -256,23 +258,18 @@ int main(int argc, char *argv[])
 
         benchmark.run_safe(*queue);
     }
-    // else if (args.cache_checks) // Run cache line hits benchmark
-    // {
-    //     auto *lock_free_queue = dynamic_cast<lock_free_aba::Queue *>(queue.get());
-    //     assert(lock_free_queue != nullptr && "cache_checks requires lock_free_aba::Queue");
-    //     std::cout << " Starting running cache checks" << std::endl;
-    //     auto total = benchmark.run_fast_cache_checks(*lock_free_queue);
-    //     std::cout << "Total cachec success: " << total.success << " \n Total cache failures: " << total.failures << std::endl;
-    // } 
-    else if( args.max_time != 0)
+
+    else if (args.max_time != 0)
     {
         benchmark.run_fast(*queue);
     }
-    else if(args.sets != 0){
+    else if (args.sets != 0)
+    {
         benchmark.run_sets(*queue);
     }
-    else {
-        std::cerr<< " For devs .Benchmark does not make sense. Please add guards in validation "<<std::endl;
+    else
+    {
+        std::cerr << " For devs .Benchmark does not make sense. Please add guards in validation " << std::endl;
     }
     benchmark.print_csv(args.type, args.print_header);
     return 0;

@@ -16,7 +16,9 @@ using value_t = int;
 enum class ConfigRecipe
 {
     Balanced,
-    ThreadSpecific
+    UpperHalf,
+    EvenOdd,
+    OneToAll
 };
 
 struct Config
@@ -36,16 +38,17 @@ struct Config
         if (batch_enque.size() != num_threads)
             return false;
 
-        int sum_pushed_batches =
-            std::accumulate(batch_enque.begin(), batch_enque.end(), 0);
-        int sum_poped_batches =
-            std::accumulate(batch_deque.begin(), batch_deque.end(), 0);
+        // int sum_pushed_batches =
+        //     std::accumulate(batch_enque.begin(), batch_enque.end(), 0);
+        // int sum_poped_batches =
+        //     std::accumulate(batch_deque.begin(), batch_deque.end(), 0);
 
-        if (sum_poped_batches != sum_pushed_batches)
-        {
-            std::cout << " Not balanced batches are declared" << std::endl;
-            return false;
-        }
+        // if (sum_poped_batches != sum_pushed_batches)
+        // {
+            
+        //     std::cout << " Not balanced batches are declared" << std::endl;
+        //     return false;
+        // }
 
         if (max_time_in_s > 100)
         {
@@ -88,7 +91,7 @@ public:
     {
     }
 
-    Config operator()()
+    Config operator()(size_t batch_size)
     {
         Config to_rtn{};
         to_rtn.num_threads = num_threads;
@@ -100,12 +103,12 @@ public:
         {
         case ConfigRecipe::Balanced:
         {
-            to_rtn.batch_enque.resize(num_threads, 4096);
-            to_rtn.batch_deque.resize(num_threads, 4096);
+            to_rtn.batch_enque.resize(num_threads, batch_size);
+            to_rtn.batch_deque.resize(num_threads, batch_size);
             break;
         }
 
-        case ConfigRecipe::ThreadSpecific:
+        case ConfigRecipe::UpperHalf:
         {
             to_rtn.batch_enque.resize(num_threads, 0);
             to_rtn.batch_deque.resize(num_threads, 0);
@@ -113,14 +116,37 @@ public:
             int half_threads = num_threads / 2;
 
             for (int i = 0; i < half_threads; ++i)
-                to_rtn.batch_enque[i] = 128;
+                to_rtn.batch_enque[i] = batch_size;
 
             for (int i = half_threads; i < num_threads; ++i)
-                to_rtn.batch_deque[i] = 128;
+                to_rtn.batch_deque[i] = batch_size;
 
             if (num_threads % 2 != 0)
-                to_rtn.batch_enque[half_threads - 1] = 128;
+                to_rtn.batch_enque[half_threads - 1] = batch_size;
 
+            break;
+        }
+
+        case ConfigRecipe::OneToAll:{
+            to_rtn.batch_enque.resize(num_threads, 0);
+            to_rtn.batch_deque.resize(num_threads, 0);
+
+            to_rtn.batch_enque[0] = batch_size;
+            for (int i = 1; i<num_threads; ++i){
+                to_rtn.batch_deque[i] = batch_size;
+            }
+            
+            break;
+        }
+        case ConfigRecipe::EvenOdd:{
+            to_rtn.batch_enque.resize(num_threads, 0);
+            to_rtn.batch_deque.resize(num_threads, 0);
+
+            for (int i = 0; i < num_threads; i+=2)
+                to_rtn.batch_enque[i] = batch_size;
+
+            for (int i = 1; i<num_threads; i+=2)
+                to_rtn.batch_deque[i] = batch_size;
             break;
         }
 
@@ -229,6 +255,7 @@ private:
     Config config;
     std::vector<Counter> counters; // for each thread one
     Results results{};
+    size_t _prefill{};
     bool verify_correctness(std::vector<Counter> const &counters,
                             value_t leftovers)
     {
@@ -253,7 +280,7 @@ private:
     };
 
 public:
-    Benchmark(Config &&cfg) : config(std::move(cfg))
+    Benchmark(Config &&cfg, size_t prefill) : config(std::move(cfg)), _prefill(prefill)
     {
         if (!config.is_config_correct())
         {
@@ -367,7 +394,7 @@ public:
         counters.resize(config.num_threads);
 
         // Prefill
-        for (int i = 0; i < 100000; i++)
+        for (int i = 0; i < _prefill; i++)
         {
             queue.push(i);
         }

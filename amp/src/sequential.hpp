@@ -205,12 +205,6 @@ namespace seq
 
         bool push(value_t val) override
         {
-            // Node *n = freelist.get(val);
-            // if (n == nullptr)
-            // {
-            //     n = new Node;
-            //     n->value = val;
-            // }
             Node *n = freelist.pop();
             if (n == nullptr)
             {

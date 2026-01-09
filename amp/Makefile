@@ -121,45 +121,113 @@ help:
 	@echo "  make DEBUG=1  - Build with debug symbols and sanitizers"
 	@echo "  make help     - Show this help message"
 
-# Benchmarks
-bench:
-	@echo "This could run a sophisticated benchmark"
 
-small-bench: $(BUILD_DIR) $(DATA_DIR)
-	@echo "Running small-bench ..."
-	@echo "Running sequential ..."
-	./$(TARGET) --type sequential --print_header  >> $(DATA_DIR)/"results_balanced_specific.csv";
+# ============================================
+# Benchmark Parameters
+# ============================================
+MAX_TIME ?= 1
+REPETITIONS ?= 1
+OUTPUT_FILE ?= results.csv
+BATCH_SIZE ?= 1000
 
-	@echo "Running global lock"
-	@for threads in 1 2 4 8; do \
-		./$(TARGET) --n_threads $$threads --repetitions 1 --max_time 1 --type global_lock >> $(DATA_DIR)/"results_balanced_specific.csv"; \
+# Thread counts (renamed for clarity)
+THREADS_WITH_SEQUENTIAL ?= 1 2 8 10 20 32 45 64
+THREADS_MULTI_ONLY ?= 2 8 10 20 32 45 64
+
+# ============================================
+# Benchmark Targets
+# ============================================
+
+small-bench-balanced: $(BUILD_DIR) $(DATA_DIR)
+	@echo "Running balanced benchmark → $(DATA_DIR)/$(OUTPUT_FILE)"
+	@echo "  MAX_TIME=$(MAX_TIME), BATCH_SIZE=$(BATCH_SIZE), REPETITIONS=$(REPETITIONS)"
+	
+	@echo "Running sequential (baseline)..."
+	./$(TARGET) --type sequential --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --print_header >> $(DATA_DIR)/$(OUTPUT_FILE)
+	
+	@echo "Running global_lock..."
+	@for threads in $(THREADS_WITH_SEQUENTIAL); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type global_lock >> $(DATA_DIR)/$(OUTPUT_FILE); \
 	done
-
-	@echo "Running fine lock"
-	@for threads in 1 2 4 8; do \
-		./$(TARGET) --n_threads $$threads --repetitions 1 --max_time 1 --type fine_lock >> $(DATA_DIR)/"results_balanced_specific.csv"; \
+	
+	@echo "Running fine_lock..."
+	@for threads in $(THREADS_WITH_SEQUENTIAL); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type fine_lock >> $(DATA_DIR)/$(OUTPUT_FILE); \
 	done
-
-	@echo "Running lock_free"
-	@for threads in 1 2 4 8; do \
-		./$(TARGET) --n_threads $$threads --repetitions 1 --max_time 1 --type lock_free >> $(DATA_DIR)/"results_balanced_specific.csv"; \
+	
+	@echo "Running lock_free..."
+	@for threads in $(THREADS_WITH_SEQUENTIAL); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type lock_free >> $(DATA_DIR)/$(OUTPUT_FILE); \
 	done
+	
+	@echo "✓ Balanced benchmark complete!"
 
 small-bench-thread: $(BUILD_DIR) $(DATA_DIR)
-	@echo "Running global lock"
-	@for threads in 2 4 8; do \
-		./$(TARGET) --n_threads $$threads --repetitions 1 --max_time 1 --type global_lock --config_recipe thread>> $(DATA_DIR)/"results_thread_specific.csv"; \
+	@echo "Running thread-specific benchmark → $(DATA_DIR)/$(OUTPUT_FILE)"
+	
+	@echo "Running global_lock..."
+	@for threads in $(THREADS_MULTI_ONLY); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type global_lock --config_recipe thread >> $(DATA_DIR)/$(OUTPUT_FILE); \
 	done
+	
+	@echo "Running fine_lock..."
+	@for threads in $(THREADS_MULTI_ONLY); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type fine_lock --config_recipe thread >> $(DATA_DIR)/$(OUTPUT_FILE); \
+	done
+	
+	@echo "Running lock_free..."
+	@for threads in $(THREADS_MULTI_ONLY); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type lock_free --config_recipe thread >> $(DATA_DIR)/$(OUTPUT_FILE); \
+	done
+	
+	@echo "✓ Thread-specific benchmark complete!"
 
-	@echo "Running fine lock"
-	@for threads in 2 4 8; do \
-		./$(TARGET) --n_threads $$threads --repetitions 1 --max_time 1 --type fine_lock  --config_recipe thread>> $(DATA_DIR)/"results_thread_specific.csv"; \
+small-bench-even-odd: $(BUILD_DIR) $(DATA_DIR)
+	@echo "Running even-odd benchmark → $(DATA_DIR)/$(OUTPUT_FILE)"
+	
+	@echo "Running global_lock..."
+	@for threads in $(THREADS_MULTI_ONLY); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type global_lock --config_recipe evenodd >> $(DATA_DIR)/$(OUTPUT_FILE); \
 	done
+	
+	@echo "Running fine_lock..."
+	@for threads in $(THREADS_MULTI_ONLY); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type fine_lock --config_recipe evenodd >> $(DATA_DIR)/$(OUTPUT_FILE); \
+	done
+	
+	@echo "Running lock_free..."
+	@for threads in $(THREADS_MULTI_ONLY); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type lock_free --config_recipe evenodd >> $(DATA_DIR)/$(OUTPUT_FILE); \
+	done
+	
+	@echo "✓ Even-odd benchmark complete!"
 
-	@echo "Running lock_free"
-	@for threads in 2 4 8; do \
-		./$(TARGET) --n_threads $$threads --repetitions 1 --max_time 1 --type lock_free  --config_recipe thread>> $(DATA_DIR)/"results_thread_specific.csv"; \
+small-bench-onetoall: $(BUILD_DIR) $(DATA_DIR)
+	@echo "Running one-to-all benchmark → $(DATA_DIR)/$(OUTPUT_FILE)"
+	
+	@echo "Running sequential (baseline)..."
+	./$(TARGET) --type sequential --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --print_header >> $(DATA_DIR)/$(OUTPUT_FILE)
+	
+	@echo "Running global_lock..."
+	@for threads in $(THREADS_WITH_SEQUENTIAL); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type global_lock --config_recipe onetoall >> $(DATA_DIR)/$(OUTPUT_FILE); \
 	done
+	
+	@echo "Running fine_lock..."
+	@for threads in $(THREADS_WITH_SEQUENTIAL); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type fine_lock --config_recipe onetoall >> $(DATA_DIR)/$(OUTPUT_FILE); \
+	done
+	
+	@echo "Running lock_free..."
+	@for threads in $(THREADS_WITH_SEQUENTIAL); do \
+		./$(TARGET) --n_threads $$threads --repetitions $(REPETITIONS) --max_time $(MAX_TIME) --batch_size $(BATCH_SIZE) --type lock_free --config_recipe onetoall >> $(DATA_DIR)/$(OUTPUT_FILE); \
+	done
+	
+	@echo "✓ One-to-all benchmark complete!"
+
+# Make these targets phony (not actual files)
+.PHONY: small-bench-balanced small-bench-thread small-bench-even-odd small-bench-onetoall
+
 
 bench-perf: $(BUILD_DIR) $(DATA_DIR)
 	@echo "Running small-bench ..."
