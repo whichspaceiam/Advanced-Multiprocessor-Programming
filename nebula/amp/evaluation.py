@@ -31,7 +31,7 @@ plt.rc("font", family="serif")
 ############################## FUNCTIONS #######################################
 
 
-def main(csv_file: Path, plot_dir: Path, base_thread=1):
+def main(csv_file: Path, plot_dir: Path):
     df = pd.read_csv(csv_file)
     df["t_eff"] = df["avg_time"] - df["avg_timeout"]
 
@@ -41,7 +41,7 @@ def main(csv_file: Path, plot_dir: Path, base_thread=1):
     df["throughput_deq_s"] = df["s_deq"] / df["t_eff"]
 
     # Throughput speedup vs 1 thread (per queue type)
-    base = df[df["n_threads"] == base_thread][["name", "throughput_ops_s"]].rename(
+    base = df[df["n_threads"] == 1][["name", "throughput_ops_s"]].rename(
         columns={"throughput_ops_s": "throughput_1t"}
     )
     df = df.merge(base, on="name", how="left")
@@ -99,6 +99,6 @@ def main(csv_file: Path, plot_dir: Path, base_thread=1):
 
 
 if __name__ == "__main__":
-    SMALL_BENCH_DATA = Path("./data/results_balanced_specific.csv")
+    SMALL_BENCH_DATA = Path("./data/results_small_bench.csv")
     PLOT_DIR = Path("./plots")
-    main(SMALL_BENCH_DATA, PLOT_DIR, 1)
+    main(SMALL_BENCH_DATA, PLOT_DIR)

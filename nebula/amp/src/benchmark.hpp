@@ -28,8 +28,8 @@ struct Config
     int max_time_in_s;
     size_t sets;
     int seed;
-    std::vector<size_t> batch_enque; // per thread batch
-    std::vector<size_t> batch_deque; // per thread batch
+    std::vector<int> batch_enque; // per thread batch
+    std::vector<int> batch_deque; // per thread batch
 
     bool is_config_correct()
     {
@@ -45,7 +45,7 @@ struct Config
 
         // if (sum_poped_batches != sum_pushed_batches)
         // {
-
+            
         //     std::cout << " Not balanced batches are declared" << std::endl;
         //     return false;
         // }
@@ -76,79 +76,76 @@ struct Config
 class ConfigFactory
 {
 private:
-    size_t m_num_threads;
-    size_t m_repetitions;
-    int m_max_time_in_s;
-    size_t m_sets;
-    int m_seed;
-    ConfigRecipe m_config_recipe;
+    int num_threads;
+    int repetitions;
+    int max_time_in_s;
+    int sets;
+    int seed;
+    ConfigRecipe config_recipe;
 
 public:
-    ConfigFactory(size_t num_threads, size_t repetitions, int max_time_in_s, size_t sets, int seed,
+    ConfigFactory(int num_threads, int repetitions, int max_time_in_s, int sets, int seed,
                   ConfigRecipe config_recipe)
-        : m_num_threads(num_threads), m_repetitions(repetitions),
-          m_max_time_in_s(max_time_in_s), m_sets(sets), m_seed(seed), m_config_recipe(config_recipe)
+        : num_threads(num_threads), repetitions(repetitions),
+          max_time_in_s(max_time_in_s), sets(sets), seed(seed), config_recipe(config_recipe)
     {
     }
 
     Config operator()(size_t batch_size)
     {
         Config to_rtn{};
-        to_rtn.num_threads = m_num_threads;
-        to_rtn.repetitions = m_repetitions;
-        to_rtn.max_time_in_s = m_max_time_in_s;
-        to_rtn.seed = m_seed;
+        to_rtn.num_threads = num_threads;
+        to_rtn.repetitions = repetitions;
+        to_rtn.max_time_in_s = max_time_in_s;
+        to_rtn.seed = seed;
 
-        switch (m_config_recipe)
+        switch (config_recipe)
         {
         case ConfigRecipe::Balanced:
         {
-            to_rtn.batch_enque.resize(m_num_threads, batch_size);
-            to_rtn.batch_deque.resize(m_num_threads, batch_size);
+            to_rtn.batch_enque.resize(num_threads, batch_size);
+            to_rtn.batch_deque.resize(num_threads, batch_size);
             break;
         }
 
         case ConfigRecipe::UpperHalf:
         {
-            to_rtn.batch_enque.resize(m_num_threads, 0);
-            to_rtn.batch_deque.resize(m_num_threads, 0);
+            to_rtn.batch_enque.resize(num_threads, 0);
+            to_rtn.batch_deque.resize(num_threads, 0);
 
-            size_t half_threads = m_num_threads / 2;
+            int half_threads = num_threads / 2;
 
-            for (size_t i = 0; i < half_threads; ++i)
+            for (int i = 0; i < half_threads; ++i)
                 to_rtn.batch_enque[i] = batch_size;
 
-            for (size_t i = half_threads; i < m_num_threads; ++i)
+            for (int i = half_threads; i < num_threads; ++i)
                 to_rtn.batch_deque[i] = batch_size;
 
-            if (m_num_threads % 2 != 0)
+            if (num_threads % 2 != 0)
                 to_rtn.batch_enque[half_threads - 1] = batch_size;
 
             break;
         }
 
-        case ConfigRecipe::OneToAll:
-        {
-            to_rtn.batch_enque.resize(m_num_threads, 0);
-            to_rtn.batch_deque.resize(m_num_threads, 0);
+        case ConfigRecipe::OneToAll:{
+            to_rtn.batch_enque.resize(num_threads, 0);
+            to_rtn.batch_deque.resize(num_threads, 0);
 
             to_rtn.batch_enque[0] = batch_size;
-            for (size_t i = 1; i < m_num_threads; ++i)
-            {
+            for (int i = 1; i<num_threads; ++i){
                 to_rtn.batch_deque[i] = batch_size;
             }
-
+            
             break;
         }
-        case ConfigRecipe::EvenOdd:
-        {
-            to_rtn.batch_enque.resize(m_num_threads, 0);
-            to_rtn.batch_deque.resize(m_num_threads, 0);
+        case ConfigRecipe::EvenOdd:{
+            to_rtn.batch_enque.resize(num_threads, 0);
+            to_rtn.batch_deque.resize(num_threads, 0);
 
-            for (size_t i = 0; i < m_num_threads; i += 2)
+            for (int i = 0; i < num_threads; i+=2)
                 to_rtn.batch_enque[i] = batch_size;
 
-            for (size_t i = 1; i < m_num_threads; i += 2)
+            for (int i = 1; i<num_threads; i+=2)
                 to_rtn.batch_deque[i] = batch_size;
             break;
         }
@@ -235,16 +232,16 @@ void update_results(Results &res, std::vector<Counter> const &counters)
     double total_timeout = std::accumulate(counters.begin(), counters.end(), 0.0,
                                            [](double sum, Counter const &c)
                                            { return sum + c.timeout; });
-    res.avg_time = counters.empty() ? 0.0 : total_time / static_cast<double> (counters.size());
-    res.avg_timeout = counters.empty() ? 0.0 : total_timeout / static_cast<double>(counters.size());
+    res.avg_time = counters.empty() ? 0.0 : total_time / counters.size();
+    res.avg_timeout = counters.empty() ? 0.0 : total_timeout / counters.size();
 }
 
 void calc_results(Results &res, Config const &config)
 {
-    size_t repetitions = config.repetitions;
+    int repetitions = config.repetitions;
 
-    res.avg_time /=  static_cast<double>(repetitions);
-    res.avg_timeout /= static_cast<double>(repetitions);
+    res.avg_time /= repetitions;
+    res.avg_timeout /= repetitions;
     res.total_n_operations /= repetitions;
     res.total_dequeues /= repetitions;
     res.total_enqueues /= repetitions;
@@ -255,10 +252,10 @@ void calc_results(Results &res, Config const &config)
 class Benchmark
 {
 private:
-    Config m_config;
-    std::vector<Counter> m_counters; // for each thread one
-    Results m_results{};
-    size_t m_prefill{};
+    Config config;
+    std::vector<Counter> counters; // for each thread one
+    Results results{};
+    size_t _prefill{};
     bool verify_correctness(std::vector<Counter> const &counters,
                             value_t leftovers)
     {
@@ -274,7 +271,7 @@ private:
         return total_pushed == (total_popped + leftovers);
     }
 
-    std::vector<value_t> generate_batch_of_elements(size_t N, std::mt19937 &rng)
+    std::vector<value_t> generate_batch_of_elements(uint N, std::mt19937 &rng)
     {
         std::vector<value_t> to_rtn(N);
         std::iota(to_rtn.begin(), to_rtn.end(), static_cast<value_t>(0));
@@ -283,9 +280,9 @@ private:
     };
 
 public:
-    Benchmark(Config &&cfg, size_t prefill) : m_config(std::move(cfg)), m_prefill(prefill)
+    Benchmark(Config &&cfg, size_t prefill) : config(std::move(cfg)), _prefill(prefill)
     {
-        if (!m_config.is_config_correct())
+        if (!config.is_config_correct())
         {
             std::cerr << " I refuse to continue with this sick Job. Bye !"
                       << std::endl;
@@ -295,25 +292,25 @@ public:
 
     void run_safe(BaseQueue &queue)
     {
-        std::mt19937 global_rng(m_config.seed);
+        std::mt19937 global_rng(config.seed);
 
-        m_counters.resize(m_config.num_threads);
+        counters.resize(config.num_threads);
 
-        for (size_t rep = 0; rep < m_config.repetitions; rep++)
+        for (size_t i = 0; i < config.repetitions; i++)
         {
-#pragma omp parallel num_threads(m_config.num_threads)
+#pragma omp parallel num_threads(config.num_threads)
             {
                 uint thread_id = omp_get_thread_num();
-                Counter &l_counter = m_counters[thread_id];
+                Counter &l_counter = counters[thread_id];
                 reset_counter(l_counter);
 
-                size_t enqueue_batch_size = m_config.batch_enque[thread_id];
-                size_t dequeue_batch_size = m_config.batch_deque[thread_id];
-                std::mt19937 thread_rng(m_config.seed + thread_id + 1);
+                uint enqueue_batch_size = config.batch_enque[thread_id];
+                uint dequeue_batch_size = config.batch_deque[thread_id];
+                std::mt19937 thread_rng(config.seed + thread_id + 1);
                 double timeout = 0.0;
 
                 double t_start = omp_get_wtime();
-                while (omp_get_wtime() - t_start < m_config.max_time_in_s)
+                while (omp_get_wtime() - t_start < config.max_time_in_s)
                 {
                     double t0 = omp_get_wtime();
                     std::vector<value_t> push_elements =
@@ -361,13 +358,13 @@ public:
             } // End parallel
 #pragma omp barrier
             value_t leftovers = count_leftovers_n_empty(queue);
-            if (!verify_correctness(m_counters, leftovers))
+            if (!verify_correctness(counters, leftovers))
                 std::cerr << "Something went terribly wrong" << std::endl;
 
-            update_results(m_results, m_counters);
+            update_results(results, counters);
         } // End for loop repetition
 
-        calc_results(m_results, m_config);
+        calc_results(results, config);
     }
 
     value_t count_leftovers_n_empty(BaseQueue &queue)
@@ -392,27 +389,27 @@ public:
 
     void run_fast(BaseQueue &queue)
     {
-        std::mt19937 global_rng(m_config.seed);
+        std::mt19937 global_rng(config.seed);
 
-        m_counters.resize(m_config.num_threads);
+        counters.resize(config.num_threads);
 
         // Prefill
-        for (size_t i = 0; i < m_prefill; i++)
+        for (int i = 0; i < _prefill; i++)
         {
-            queue.push(static_cast<value_t>(i));
+            queue.push(i);
         }
 
-        for (size_t rep = 0; rep < m_config.repetitions; rep++)
+        for (size_t i = 0; i < config.repetitions; i++)
         {
-#pragma omp parallel num_threads(m_config.num_threads)
+#pragma omp parallel num_threads(config.num_threads)
             {
                 uint thread_id = omp_get_thread_num();
-                Counter &l_counter = m_counters[thread_id];
+                Counter &l_counter = counters[thread_id];
                 reset_counter(l_counter);
 
-                size_t enqueue_batch_size = m_config.batch_enque[thread_id];
-                size_t dequeue_batch_size = m_config.batch_deque[thread_id];
-                std::mt19937 thread_rng(m_config.seed + thread_id + 1);
+                uint enqueue_batch_size = config.batch_enque[thread_id];
+                uint dequeue_batch_size = config.batch_deque[thread_id];
+                std::mt19937 thread_rng(config.seed + thread_id + 1);
                 double timeout = 0.0;
 
                 std::vector<value_t> push_elements =
@@ -420,7 +417,7 @@ public:
                                                thread_rng);
 #pragma omp barrier
                 double t_start = omp_get_wtime();
-                while (omp_get_wtime() - t_start < m_config.max_time_in_s)
+                while (omp_get_wtime() - t_start < config.max_time_in_s)
                 {
 
                     for (size_t i = 0; i < enqueue_batch_size; i++)
@@ -447,47 +444,47 @@ public:
 
             } // End parallel
 
-            update_results(m_results, m_counters);
+            update_results(results, counters);
         } // End for loop repetition
 
-        calc_results(m_results, m_config);
+        calc_results(results, config);
     }
 
     void run_sets(BaseQueue &queue)
     {
-        std::mt19937 global_rng(m_config.seed);
-        m_counters.resize(m_config.num_threads);
+        std::mt19937 global_rng(config.seed);
+        counters.resize(config.num_threads);
 
-        for (size_t rep = 0; rep < m_config.repetitions; rep++)
+        for (size_t i = 0; i < config.repetitions; i++)
         {
-#pragma omp parallel num_threads(m_config.num_threads)
+#pragma omp parallel num_threads(config.num_threads)
             {
                 uint thread_id = omp_get_thread_num();
-                Counter &l_counter = m_counters[thread_id];
+                Counter &l_counter = counters[thread_id];
                 reset_counter(l_counter);
 
-                size_t enqueue_batch_size = m_config.batch_enque[thread_id];
-                size_t dequeue_batch_size = m_config.batch_deque[thread_id];
-                std::mt19937 thread_rng(m_config.seed + thread_id + 1);
+                uint enqueue_batch_size = config.batch_enque[thread_id];
+                uint dequeue_batch_size = config.batch_deque[thread_id];
+                std::mt19937 thread_rng(config.seed + thread_id + 1);
                 double timeout = 0.0;
 
                 std::vector<value_t> push_elements =
                     generate_batch_of_elements(enqueue_batch_size,
                                                thread_rng);
-                assert(m_config.sets != 0);
+                assert(config.sets != 0);
 #pragma omp barrier
                 double t_start = omp_get_wtime();
-                for (size_t i{0}; i < m_config.sets; ++i)
+                for (size_t i{0}; i < config.sets; ++i)
                 {
 
-                    for (size_t j = 0; j < enqueue_batch_size; j++)
+                    for (size_t i = 0; i < enqueue_batch_size; i++)
                     {
-                        queue.push(push_elements[j]);
+                        queue.push(push_elements[i]);
                     }
                     l_counter.total_push += enqueue_batch_size;
                     l_counter.succeeded_push += enqueue_batch_size;
 
-                    for (size_t j = 0; j < dequeue_batch_size; j++)
+                    for (size_t i = 0; i < dequeue_batch_size; i++)
                     {
                         queue.pop();
                     }
@@ -504,24 +501,24 @@ public:
 
             } // End parallel
 
-            update_results(m_results, m_counters);
+            update_results(results, counters);
         } // End for loop repetition
 
-        calc_results(m_results, m_config);
+        calc_results(results, config);
     }
 
     void print_results() const
     {
         std::cout << "Results:\n";
-        std::cout << "  Average time: " << m_results.avg_time << "\n";
-        std::cout << "  Total operations: " << m_results.total_n_operations
+        std::cout << "  Average time: " << results.avg_time << "\n";
+        std::cout << "  Total operations: " << results.total_n_operations
                   << "\n";
         std::cout << "  Total succeeded enqueues: "
-                  << m_results.total_succeded_enqueues << "\n";
+                  << results.total_succeded_enqueues << "\n";
         std::cout << "  Total succeeded dequeues: "
-                  << m_results.total_succeded_dequeues << "\n";
-        std::cout << "  Total enqueues: " << m_results.total_enqueues << "\n";
-        std::cout << "  Total dequeues: " << m_results.total_dequeues << "\n";
+                  << results.total_succeded_dequeues << "\n";
+        std::cout << "  Total enqueues: " << results.total_enqueues << "\n";
+        std::cout << "  Total dequeues: " << results.total_dequeues << "\n";
     };
 
     void print_csv(std::string const &name, bool header = false) const
@@ -532,14 +529,14 @@ public:
         }
 
         std::cout << name << ",";
-        std::cout << m_config.num_threads << ",";
-        std::cout << m_results.avg_time << ",";
-        std::cout << m_results.avg_timeout << ",";
-        std::cout << m_results.total_n_operations << ",";
-        std::cout << m_results.total_succeded_enqueues << ",";
-        std::cout << m_results.total_succeded_dequeues << ",";
-        std::cout << m_results.total_enqueues << ",";
-        std::cout << m_results.total_dequeues;
+        std::cout << config.num_threads << ",";
+        std::cout << results.avg_time << ",";
+        std::cout << results.avg_timeout << ",";
+        std::cout << results.total_n_operations << ",";
+        std::cout << results.total_succeded_enqueues << ",";
+        std::cout << results.total_succeded_dequeues << ",";
+        std::cout << results.total_enqueues << ",";
+        std::cout << results.total_dequeues;
         std::cout << std::endl;
     };
     // void save_results(std::filesystem::path const &output) const {};

@@ -206,10 +206,10 @@ int main(int argc, char *argv[])
 
     // This is now safe because are_valid() checks config_recipe
     Config config = ConfigFactory{
-        static_cast<size_t>(args.n_threads),
-        static_cast<size_t>(args.repetitions),
+        args.n_threads,
+        args.repetitions,
         args.max_time,
-        static_cast<size_t>(args.sets),
+        args.sets,
         args.seed,
         config_recipe_map[args.config_recipe]}(args.batch_size);
 
